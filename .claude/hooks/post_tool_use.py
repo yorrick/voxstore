@@ -34,7 +34,7 @@ def get_python_project_context(file_path: str) -> tuple[Path, str] | None:
         prefix = f"{project_dir}/"
         if file_path.startswith(prefix):
             project_path = project_root / project_dir
-            relative_path = file_path[len(prefix):]
+            relative_path = file_path[len(prefix) :]
             return project_path, relative_path
     return None
 
@@ -43,7 +43,9 @@ def run_command(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
     try:
-        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env, timeout=25)
+        result = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, env=env, timeout=25
+        )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
         return -1, "", "Command timed out"
@@ -55,21 +57,27 @@ def run_python_checks(project_dir: Path, relative_path: str) -> None:
     print(f"Running checks on {project_dir.name}/{relative_path}...")
 
     print("  Formatting with ruff...")
-    rc, stdout, stderr = run_command(["uv", "run", "ruff", "format", relative_path], project_dir)
+    rc, stdout, stderr = run_command(
+        ["uv", "run", "ruff", "format", relative_path], project_dir
+    )
     if stdout:
         print(stdout)
     if stderr and rc != 0:
         print(stderr)
 
     print("  Linting with ruff...")
-    rc, stdout, stderr = run_command(["uv", "run", "ruff", "check", "--fix", relative_path], project_dir)
+    rc, stdout, stderr = run_command(
+        ["uv", "run", "ruff", "check", "--fix", relative_path], project_dir
+    )
     if stdout:
         print(stdout)
     if stderr and rc != 0:
         print(stderr)
 
     print("  Type checking with pyright...")
-    rc, stdout, stderr = run_command(["uv", "run", "pyright", relative_path], project_dir)
+    rc, stdout, stderr = run_command(
+        ["uv", "run", "pyright", relative_path], project_dir
+    )
     if stdout:
         print(stdout)
     if stderr and rc != 0:
@@ -80,7 +88,9 @@ def run_python_checks(project_dir: Path, relative_path: str) -> None:
 
 def run_js_checks(project_root: Path, file_path: str) -> None:
     print(f"Running prettier on {file_path}...")
-    rc, stdout, stderr = run_command(["npx", "prettier", "--write", file_path], project_root)
+    rc, stdout, stderr = run_command(
+        ["npx", "prettier", "--write", file_path], project_root
+    )
     if stdout:
         print(stdout)
     if stderr and rc != 0:
@@ -109,7 +119,9 @@ def main() -> None:
             sys.exit(0)
 
         # JS/CSS files in client
-        if file_path.startswith("app/client/") and file_path.endswith((".js", ".css", ".html")):
+        if file_path.startswith("app/client/") and file_path.endswith(
+            (".js", ".css", ".html")
+        ):
             run_js_checks(project_root, file_path)
             sys.exit(0)
 

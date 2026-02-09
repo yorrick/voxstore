@@ -49,7 +49,10 @@ def main():
         tool_input = input_data.get("tool_input", {})
 
         if is_env_file_access(tool_name, tool_input):
-            print("BLOCKED: Access to .env files is prohibited. Use .env.sample instead.", file=sys.stderr)
+            print(
+                "BLOCKED: Access to .env files is prohibited. Use .env.sample instead.",
+                file=sys.stderr,
+            )
             sys.exit(2)
 
         if tool_name == "Bash":
