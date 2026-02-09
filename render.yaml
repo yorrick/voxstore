@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: voxstore
+    runtime: python
+    buildCommand: cd app/server && pip install -r requirements.txt
+    startCommand: cd app/server && uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SENTRY_DSN
+        sync: false
+      - key: BACKEND_PORT
+        value: $PORT

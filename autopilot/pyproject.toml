@@ -1,0 +1,66 @@
+[project]
+name = "voxstore-autopilot"
+version = "0.1.0"
+description = "VoxStore Autopilot - Self-healing service using Claude Agent SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.115.13",
+    "uvicorn==0.34.3",
+    "python-dotenv==1.0.1",
+    "claude-agent-sdk",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.1",
+    "ruff>=0.12.3",
+    "pyright>=1.1.390",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pyright>=1.1.390",
+]
+
+[tool.pyright]
+include = ["."]
+exclude = [
+  "build",
+  "**/venv",
+  "**/.venv",
+  "**/env",
+  "**/__pycache__",
+  "**/.pytest_cache",
+  "**/dist",
+  "**/.egg-info",
+  "**/.mypy_cache",
+  "**/.ruff_cache"
+]
+extraPaths = [".."]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "I",  # isort
+  "B",  # flake8-bugbear
+  "C4", # flake8-comprehensions
+  "UP", # pyupgrade
+]
+ignore = [
+  "B008",   # Allow function calls in argument defaults (FastAPI Depends pattern)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

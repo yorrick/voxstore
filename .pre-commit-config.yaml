@@ -1,0 +1,55 @@
+default_language_version:
+  python: python3.10
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.9.9
+  hooks:
+    - id: ruff
+      types_or: [ python, pyi ]
+      args: [ --fix ]
+    - id: ruff-format
+      types_or: [ python, pyi ]
+
+- repo: local
+  hooks:
+    - id: pyright-server
+      name: pyright (server)
+      entry: bash -c 'unset VIRTUAL_ENV && cd app/server && uv run pyright'
+      language: system
+      types: [python]
+      pass_filenames: false
+      files: ^app/server/
+
+    - id: pyright-autopilot
+      name: pyright (autopilot)
+      entry: bash -c 'unset VIRTUAL_ENV && cd autopilot && uv run pyright'
+      language: system
+      types: [python]
+      pass_filenames: false
+      files: ^autopilot/
+
+    - id: pytest-server
+      name: pytest (server)
+      entry: bash -c 'unset VIRTUAL_ENV && cd app/server && uv run pytest -x -q'
+      language: system
+      types: [python]
+      pass_filenames: false
+      files: ^app/server/
+
+    - id: pytest-autopilot
+      name: pytest (autopilot)
+      entry: bash -c 'unset VIRTUAL_ENV && cd autopilot && uv run pytest -x -q'
+      language: system
+      types: [python]
+      pass_filenames: false
+      files: ^autopilot/
+
+    - id: prettier
+      name: prettier (frontend)
+      entry: npx prettier --write --check
+      language: system
+      types_or: [javascript, css, html]
+      files: ^app/client/

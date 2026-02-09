@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.uv/
+
+# Environment
+.env
+*.env.local
+
+# Database
+app/server/db/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Autopilot runs
+autopilot/runs/
+
+# Logs
+*.log
+
+# Plan file
+PLAN.md
+
+# Node/Playwright
+node_modules/
+test-results/
+playwright-report/
