@@ -4,6 +4,7 @@ module.exports = defineConfig({
   testDir: './tests/e2e',
   timeout: 30000,
   retries: 1,
+  workers: 1,
   use: {
     baseURL: 'http://localhost:8000',
     screenshot: 'only-on-failure',
@@ -11,6 +12,7 @@ module.exports = defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
   ],
   webServer: {
     command: 'cd app/server && uv run python server.py',

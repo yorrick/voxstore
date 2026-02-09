@@ -30,22 +30,26 @@ async function fetchProducts(params = {}) {
         if (v) url.searchParams.set(k, v);
     });
     const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch products");
     return res.json();
 }
 
 async function searchProducts(query) {
     const res = await fetch(API_BASE + "/search?q=" + encodeURIComponent(query));
+    if (!res.ok) throw new Error("Failed to search products");
     const data = await res.json();
     return data.products;
 }
 
 async function fetchCategories() {
     const res = await fetch(API_BASE + "/categories");
+    if (!res.ok) throw new Error("Failed to fetch categories");
     return res.json();
 }
 
 async function fetchCart() {
     const res = await fetch(API_BASE + "/cart");
+    if (!res.ok) throw new Error("Failed to fetch cart");
     return res.json();
 }
 
@@ -55,11 +59,15 @@ async function addToCartAPI(productId) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_id: productId, quantity: 1 }),
     });
+    if (!res.ok) throw new Error("Failed to add to cart");
     return res.json();
 }
 
 async function removeFromCartAPI(itemId) {
-    await fetch(API_BASE + "/cart/" + itemId, { method: "DELETE" });
+    var res = await fetch(API_BASE + "/cart/" + itemId, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to remove from cart");
 }
 
 // --- Rendering ---
@@ -68,18 +76,17 @@ function renderProducts(items) {
     productsGrid.innerHTML = "";
 
     if (items.length === 0) {
-        productsGrid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#888;padding:40px;">No products found</p>';
+        productsGrid.innerHTML =
+            '<p style="grid-column:1/-1;text-align:center;color:#888;padding:40px;">No products found</p>';
         return;
     }
 
     items.forEach(function (product) {
         var card = document.createElement("div");
         card.className = "product-card";
-        card.setAttribute('data-testid', 'product-card');
+        card.setAttribute("data-testid", "product-card");
 
-        var stockHTML = product.in_stock
-            ? ""
-            : '<span class="out-of-stock">Out of Stock</span>';
+        var stockHTML = product.in_stock ? "" : '<span class="out-of-stock">Out of Stock</span>';
 
         var stars = "";
         for (var i = 0; i < 5; i++) {
@@ -87,21 +94,40 @@ function renderProducts(items) {
         }
 
         card.innerHTML =
-            '<img src="' + product.image_url + '" alt="' + product.name + '" loading="lazy">' +
+            '<img src="' +
+            product.image_url +
+            '" alt="' +
+            product.name +
+            '" loading="lazy">' +
             '<div class="product-info">' +
-                '<span class="product-category">' + product.category + '</span>' +
-                '<h3 class="product-name">' + product.name + '</h3>' +
-                '<p class="product-description">' + product.description + '</p>' +
-                '<div class="product-footer">' +
-                    '<span class="product-price">$' + product.price.toFixed(2) + '</span>' +
-                    '<span class="product-rating">' + stars + ' ' + product.rating + '</span>' +
-                    stockHTML +
-                '</div>' +
-                '<button class="add-to-cart-btn" data-testid="add-to-cart-btn" data-id="' + product.id + '"' +
-                    (product.in_stock ? '' : ' disabled') + '>' +
-                    (product.in_stock ? 'Add to Cart' : 'Unavailable') +
-                '</button>' +
-            '</div>';
+            '<span class="product-category">' +
+            product.category +
+            "</span>" +
+            '<h3 class="product-name">' +
+            product.name +
+            "</h3>" +
+            '<p class="product-description">' +
+            product.description +
+            "</p>" +
+            '<div class="product-footer">' +
+            '<span class="product-price">$' +
+            product.price.toFixed(2) +
+            "</span>" +
+            '<span class="product-rating">' +
+            stars +
+            " " +
+            product.rating +
+            "</span>" +
+            stockHTML +
+            "</div>" +
+            '<button class="add-to-cart-btn" data-testid="add-to-cart-btn" data-id="' +
+            product.id +
+            '"' +
+            (product.in_stock ? "" : " disabled") +
+            ">" +
+            (product.in_stock ? "Add to Cart" : "Unavailable") +
+            "</button>" +
+            "</div>";
 
         productsGrid.appendChild(card);
     });
@@ -138,13 +164,21 @@ function renderCart() {
 
         var div = document.createElement("div");
         div.className = "cart-item";
-        div.setAttribute('data-testid', 'cart-item');
+        div.setAttribute("data-testid", "cart-item");
         div.innerHTML =
             '<div class="cart-item-info">' +
-                '<div class="cart-item-name">' + product.name + '</div>' +
-                '<div class="cart-item-price">$' + product.price.toFixed(2) + ' × ' + item.quantity + '</div>' +
-            '</div>' +
-            '<button class="cart-item-remove" data-id="' + item.id + '">×</button>';
+            '<div class="cart-item-name">' +
+            product.name +
+            "</div>" +
+            '<div class="cart-item-price">$' +
+            product.price.toFixed(2) +
+            " × " +
+            item.quantity +
+            "</div>" +
+            "</div>" +
+            '<button class="cart-item-remove" data-id="' +
+            item.id +
+            '">×</button>';
 
         cartItemsEl.appendChild(div);
     });
@@ -164,15 +198,23 @@ function renderCart() {
 // --- Actions ---
 
 async function addToCart(productId) {
-    await addToCartAPI(productId);
-    cart = await fetchCart();
-    renderCart();
+    try {
+        await addToCartAPI(productId);
+        cart = await fetchCart();
+        renderCart();
+    } catch (err) {
+        console.error("Add to cart failed:", err);
+    }
 }
 
 async function removeFromCart(itemId) {
-    await removeFromCartAPI(itemId);
-    cart = await fetchCart();
-    renderCart();
+    try {
+        await removeFromCartAPI(itemId);
+        cart = await fetchCart();
+        renderCart();
+    } catch (err) {
+        console.error("Remove from cart failed:", err);
+    }
 }
 
 async function loadProducts() {
@@ -181,7 +223,9 @@ async function loadProducts() {
     if (sortFilter.value) params.sort = sortFilter.value;
 
     products = await fetchProducts(params);
-    products.forEach(function (p) { productsMap[p.id] = p; });
+    products.forEach(function (p) {
+        productsMap[p.id] = p;
+    });
     renderProducts(products);
 }
 
@@ -192,11 +236,15 @@ searchInput.addEventListener("input", function () {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(async function () {
         var query = searchInput.value.trim();
-        if (query) {
-            var results = await searchProducts(query);
-            renderProducts(results);
-        } else {
-            loadProducts();
+        try {
+            if (query) {
+                var results = await searchProducts(query);
+                renderProducts(results);
+            } else {
+                await loadProducts();
+            }
+        } catch (err) {
+            console.error("Search failed:", err);
         }
     }, 400);
 });
@@ -205,28 +253,33 @@ searchInput.addEventListener("input", function () {
 
 var recognition = null;
 
-if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+try {
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = "en-US";
 
-    recognition.onresult = function (event) {
-        var transcript = event.results[0][0].transcript;
-        searchInput.value = transcript;
-        searchInput.dispatchEvent(new Event("input"));
-        stopListening();
-    };
+        recognition.onresult = function (event) {
+            var transcript = event.results[0][0].transcript;
+            searchInput.value = transcript;
+            searchInput.dispatchEvent(new Event("input"));
+            stopListening();
+        };
 
-    recognition.onerror = function () {
-        stopListening();
-    };
+        recognition.onerror = function () {
+            stopListening();
+        };
 
-    recognition.onend = function () {
-        stopListening();
-    };
-} else {
+        recognition.onend = function () {
+            stopListening();
+        };
+    } else {
+        voiceBtn.style.display = "none";
+    }
+} catch (e) {
+    console.warn("Speech recognition not supported:", e);
     voiceBtn.style.display = "none";
 }
 
@@ -274,21 +327,33 @@ sortFilter.addEventListener("change", loadProducts);
 // --- Init ---
 
 async function init() {
-    // Load categories
-    var categories = await fetchCategories();
-    categories.forEach(function (cat) {
-        var opt = document.createElement("option");
-        opt.value = cat;
-        opt.textContent = cat;
-        categoryFilter.appendChild(opt);
-    });
+    try {
+        // Load categories
+        var categories = await fetchCategories();
+        categories.forEach(function (cat) {
+            var opt = document.createElement("option");
+            opt.value = cat;
+            opt.textContent = cat;
+            categoryFilter.appendChild(opt);
+        });
+    } catch (err) {
+        console.error("Failed to load categories:", err);
+    }
 
-    // Load products
-    await loadProducts();
+    try {
+        // Load products
+        await loadProducts();
+    } catch (err) {
+        console.error("Failed to load products:", err);
+    }
 
-    // Load cart
-    cart = await fetchCart();
-    renderCart();
+    try {
+        // Load cart
+        cart = await fetchCart();
+        renderCart();
+    } catch (err) {
+        console.error("Failed to load cart:", err);
+    }
 }
 
 init();

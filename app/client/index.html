@@ -1,81 +1,103 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VoxStore - Voice-Powered Product Catalog</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <header>
-        <div class="header-inner">
-            <h1 class="logo">VoxStore</h1>
-            <div class="search-bar">
-                <input type="text" id="search-input" data-testid="search-input" placeholder="Search products...">
-                <button id="voice-btn" class="voice-btn" data-testid="voice-button" title="Voice search">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="23"/>
-                        <line x1="8" y1="23" x2="16" y2="23"/>
-                    </svg>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>VoxStore - Voice-Powered Product Catalog</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <header>
+            <div class="header-inner">
+                <h1 class="logo">VoxStore</h1>
+                <div class="search-bar">
+                    <input
+                        type="text"
+                        id="search-input"
+                        data-testid="search-input"
+                        placeholder="Search products..."
+                    />
+                    <button
+                        id="voice-btn"
+                        class="voice-btn"
+                        data-testid="voice-button"
+                        title="Voice search"
+                    >
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="12" y1="19" x2="12" y2="23" />
+                            <line x1="8" y1="23" x2="16" y2="23" />
+                        </svg>
+                    </button>
+                </div>
+                <button id="cart-btn" class="cart-btn" data-testid="cart-button">
+                    Cart (<span id="cart-count" data-testid="cart-count">0</span>)
                 </button>
             </div>
-            <button id="cart-btn" class="cart-btn" data-testid="cart-button">
-                Cart (<span id="cart-count" data-testid="cart-count">0</span>)
-            </button>
-        </div>
-    </header>
+        </header>
 
-    <main>
-        <aside class="filters">
-            <h3>Filters</h3>
-            <div class="filter-group">
-                <label for="category-filter">Category</label>
-                <select id="category-filter" data-testid="category-filter">
-                    <option value="">All Categories</option>
-                </select>
+        <main>
+            <aside class="filters">
+                <h3>Filters</h3>
+                <div class="filter-group">
+                    <label for="category-filter">Category</label>
+                    <select id="category-filter" data-testid="category-filter">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="sort-filter">Sort by</label>
+                    <select id="sort-filter" data-testid="sort-filter">
+                        <option value="">Default</option>
+                        <option value="price_asc">Price: Low to High</option>
+                        <option value="price_desc">Price: High to Low</option>
+                        <option value="rating">Top Rated</option>
+                    </select>
+                </div>
+            </aside>
+
+            <section id="products-grid" class="products-grid" data-testid="products-grid">
+                <!-- Products rendered by JS -->
+            </section>
+        </main>
+
+        <!-- Cart panel -->
+        <div id="cart-panel" class="cart-panel" data-testid="cart-panel">
+            <div class="cart-header">
+                <h2>Your Cart</h2>
+                <button id="close-cart" class="close-cart" data-testid="close-cart">&times;</button>
             </div>
-            <div class="filter-group">
-                <label for="sort-filter">Sort by</label>
-                <select id="sort-filter" data-testid="sort-filter">
-                    <option value="">Default</option>
-                    <option value="price_asc">Price: Low to High</option>
-                    <option value="price_desc">Price: High to Low</option>
-                    <option value="rating">Top Rated</option>
-                </select>
+            <div id="cart-items" class="cart-items" data-testid="cart-items">
+                <p class="empty-cart">Your cart is empty</p>
             </div>
-        </aside>
-
-        <section id="products-grid" class="products-grid" data-testid="products-grid">
-            <!-- Products rendered by JS -->
-        </section>
-    </main>
-
-    <!-- Cart panel -->
-    <div id="cart-panel" class="cart-panel" data-testid="cart-panel">
-        <div class="cart-header">
-            <h2>Your Cart</h2>
-            <button id="close-cart" class="close-cart" data-testid="close-cart">&times;</button>
-        </div>
-        <div id="cart-items" class="cart-items" data-testid="cart-items">
-            <p class="empty-cart">Your cart is empty</p>
-        </div>
-        <div class="cart-footer">
-            <div class="cart-total">
-                Total: $<span id="cart-total" data-testid="cart-total">0.00</span>
+            <div class="cart-footer">
+                <div class="cart-total">
+                    Total: $<span id="cart-total" data-testid="cart-total">0.00</span>
+                </div>
             </div>
         </div>
-    </div>
-    <div id="cart-overlay" class="cart-overlay" data-testid="cart-overlay"></div>
+        <div id="cart-overlay" class="cart-overlay" data-testid="cart-overlay"></div>
 
-    <!-- Voice search indicator -->
-    <div id="voice-indicator" class="voice-indicator" data-testid="voice-indicator" style="display:none;">
-        <div class="pulse-ring"></div>
-        <span>Listening...</span>
-    </div>
+        <!-- Voice search indicator -->
+        <div
+            id="voice-indicator"
+            class="voice-indicator"
+            data-testid="voice-indicator"
+            style="display: none"
+        >
+            <div class="pulse-ring"></div>
+            <span>Listening...</span>
+        </div>
 
-    <script src="sentry.js"></script>
-    <script src="app.js"></script>
-</body>
+        <script src="sentry.js"></script>
+        <script src="app.js"></script>
+    </body>
 </html>
