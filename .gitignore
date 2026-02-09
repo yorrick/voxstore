@@ -36,3 +36,6 @@ PLAN.md
 node_modules/
 test-results/
 playwright-report/
+
+trees/**
+logs/**
