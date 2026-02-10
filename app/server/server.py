@@ -53,13 +53,18 @@ app = FastAPI(
 )
 
 # CORS
-frontend_port = os.environ.get("FRONTEND_PORT", "5173")
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
+allowed_origins: list[str] = []
+if allowed_origins_env:
+    allowed_origins.extend([o.strip() for o in allowed_origins_env.split(",") if o.strip()])
+if not os.environ.get("RENDER"):
+    frontend_port = os.environ.get("FRONTEND_PORT", "5173")
+    allowed_origins.extend([f"http://localhost:{frontend_port}", "http://localhost:8000"])
+logger.info("[CORS] Allowed origins: %s", allowed_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        f"http://localhost:{frontend_port}",
-        "http://localhost:8000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

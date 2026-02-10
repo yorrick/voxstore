@@ -1,11 +1,41 @@
 services:
   - type: web
-    name: voxstore
+    name: voxstore-dev
     runtime: python
-    buildCommand: cd app/server && pip install -r requirements.txt
-    startCommand: cd app/server && uvicorn server:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install uv && cd app/server && uv sync --frozen
+    startCommand: cd app/server && uv run uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVarGroups:
+      - name: voxstore-dev-env
+
+  - type: web
+    name: voxstore-prod
+    runtime: python
+    buildCommand: pip install uv && cd app/server && uv sync --frozen
+    startCommand: cd app/server && uv run uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVarGroups:
+      - name: voxstore-prod-env
+
+envVarGroups:
+  - name: voxstore-dev-env
     envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://voxstore-dev.onrender.com
       - key: SENTRY_DSN
         sync: false
-      - key: BACKEND_PORT
-        value: $PORT
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+  - name: voxstore-prod-env
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://voxstore-prod.onrender.com
+      - key: SENTRY_DSN
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
