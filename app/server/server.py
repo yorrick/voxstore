@@ -18,9 +18,10 @@ from core.models import (
     Product,
     SearchResponse,
     TranscribeResponse,
+    WebSocketTokenResponse,
 )
 from core.search import search_products
-from core.transcribe import TranscriptionError, transcribe_audio
+from core.transcribe import TranscriptionError, get_websocket_token, transcribe_audio
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
@@ -160,6 +161,17 @@ async def transcribe_endpoint(file: UploadFile = File(...)):
     except TranscriptionError as e:
         logger.warning("[TRANSCRIBE] %s", e)
         return TranscribeResponse(text="", success=False, error=str(e))
+
+
+@app.post("/api/transcribe/token", response_model=WebSocketTokenResponse)
+async def transcribe_token_endpoint():
+    """Get a single-use WebSocket token for realtime transcription."""
+    try:
+        result = await get_websocket_token()
+        return result
+    except TranscriptionError as e:
+        logger.warning("[TRANSCRIBE TOKEN] %s", e)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # --- Cart endpoints ---

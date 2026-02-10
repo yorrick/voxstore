@@ -158,3 +158,87 @@ def test_endpoint_transcription_error(client):
     data = res.json()
     assert data["success"] is False
     assert "API key" in data["error"]
+
+
+# --- Unit tests for get_websocket_token ---
+
+
+@pytest.mark.asyncio
+async def test_get_websocket_token_success():
+    from core.transcribe import get_websocket_token
+
+    mock_response = _mock_response(200, {"token": "test-token-123"})
+
+    with patch("core.transcribe.httpx.AsyncClient") as mock_client_cls:
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_cls.return_value.__aenter__.return_value = instance
+
+        with patch.dict("os.environ", {"ELEVENLABS_API_KEY": "test-key"}):
+            result = await get_websocket_token()
+
+    assert result["token"] == "test-token-123"
+    assert "wss://api.elevenlabs.io" in result["ws_url"]
+    assert "token=test-token-123" in result["ws_url"]
+    assert "commit_strategy=vad" in result["ws_url"]
+
+
+@pytest.mark.asyncio
+async def test_get_websocket_token_no_api_key():
+    from core.transcribe import get_websocket_token
+
+    with patch.dict("os.environ", {}, clear=True):
+        with pytest.raises(TranscriptionError, match="not configured"):
+            await get_websocket_token()
+
+
+@pytest.mark.asyncio
+async def test_get_websocket_token_invalid_key():
+    from core.transcribe import get_websocket_token
+
+    mock_response = _mock_response(401)
+
+    with patch("core.transcribe.httpx.AsyncClient") as mock_client_cls:
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_cls.return_value.__aenter__.return_value = instance
+
+        with patch.dict("os.environ", {"ELEVENLABS_API_KEY": "bad-key"}):
+            with pytest.raises(TranscriptionError, match="Invalid.*API key"):
+                await get_websocket_token()
+
+
+@pytest.mark.asyncio
+async def test_get_websocket_token_timeout():
+    from core.transcribe import get_websocket_token
+
+    with patch("core.transcribe.httpx.AsyncClient") as mock_client_cls:
+        instance = AsyncMock()
+        instance.post.side_effect = httpx.TimeoutException("timeout")
+        mock_client_cls.return_value.__aenter__.return_value = instance
+
+        with patch.dict("os.environ", {"ELEVENLABS_API_KEY": "test-key"}):
+            with pytest.raises(TranscriptionError, match="timed out"):
+                await get_websocket_token()
+
+
+# --- Integration tests for /api/transcribe/token endpoint ---
+
+
+def test_token_endpoint_success(client):
+    with patch("server.get_websocket_token", new_callable=AsyncMock) as mock:
+        mock.return_value = {"token": "abc", "ws_url": "wss://example.com"}
+        res = client.post("/api/transcribe/token")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["token"] == "abc"
+    assert data["ws_url"] == "wss://example.com"
+
+
+def test_token_endpoint_error(client):
+    with patch("server.get_websocket_token", new_callable=AsyncMock) as mock:
+        mock.side_effect = TranscriptionError("ELEVENLABS_API_KEY not configured")
+        res = client.post("/api/transcribe/token")
+
+    assert res.status_code == 500

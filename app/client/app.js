@@ -252,8 +252,15 @@ searchInput.addEventListener("input", function () {
 // --- Voice search ---
 
 var recognition = null;
-var mediaRecorder = null;
 var isRecording = false;
+var activeStream = null;
+var activeAudioCtx = null;
+var activeWebSocket = null;
+var activeSource = null;
+var activeProcessor = null;
+var recordingTriggeredBy = null; // 'button' or 'spacebar'
+var partialTranscriptEl = document.getElementById("partial-transcript");
+var voiceHint = document.getElementById("voice-hint");
 
 // Initialize browser SpeechRecognition as fallback
 try {
@@ -283,38 +290,269 @@ try {
     console.warn("Speech recognition not supported:", e);
 }
 
-var hasMediaRecorder =
-    typeof MediaRecorder !== "undefined" &&
-    navigator.mediaDevices &&
-    navigator.mediaDevices.getUserMedia;
+var hasMicrophone = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
 
-if (!hasMediaRecorder && !recognition) {
+if (!hasMicrophone && !recognition) {
     voiceBtn.style.display = "none";
+    if (voiceHint) voiceHint.style.display = "none";
 }
 
 function setVoiceStatus(message) {
     voiceIndicator.querySelector("span").textContent = message;
 }
 
-function startListening() {
-    if (isRecording) return;
-    isRecording = true;
-
-    if (hasMediaRecorder) {
-        startMediaRecorder();
-    } else if (recognition) {
-        startBrowserRecognition();
-    } else {
-        isRecording = false;
+function setPartialTranscript(text) {
+    if (partialTranscriptEl) {
+        partialTranscriptEl.textContent = text;
     }
 }
 
-var SILENCE_THRESHOLD = 10; // RMS level below which we consider silence
-var SILENCE_DURATION = 1500; // ms of silence after speech before auto-stop
-var MIN_RECORDING_MS = 1500; // don't auto-stop before this
-var MAX_RECORDING_MS = 10000; // safety net: stop after 10s
+function startListening(triggeredBy) {
+    if (isRecording) return;
+    isRecording = true;
+    recordingTriggeredBy = triggeredBy || "button";
 
-function startMediaRecorder() {
+    startWebSocketRecording();
+}
+
+// --- WebSocket-based realtime transcription (primary path) ---
+
+function int16ToBase64(int16Array) {
+    var bytes = new Uint8Array(int16Array.buffer);
+    var binary = "";
+    for (var i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function startWebSocketRecording() {
+    voiceBtn.classList.add("listening");
+    voiceIndicator.style.display = "block";
+    setVoiceStatus("Connecting...");
+    setPartialTranscript("");
+
+    // Step 1: Get token from backend
+    fetch(API_BASE + "/transcribe/token", { method: "POST" })
+        .then(function (res) {
+            if (!res.ok) throw new Error("Token request failed: " + res.status);
+            return res.json();
+        })
+        .then(function (data) {
+            if (!isRecording) return; // user cancelled
+            connectWebSocket(data.ws_url);
+        })
+        .catch(function (err) {
+            console.warn("WebSocket token failed, falling back:", err);
+            fallbackToMediaRecorder();
+        });
+}
+
+function connectWebSocket(wsUrl) {
+    console.log("[VOICE] Connecting WebSocket to:", wsUrl.substring(0, 60) + "...");
+    var ws = new WebSocket(wsUrl);
+    activeWebSocket = ws;
+
+    ws.onopen = function () {
+        console.log("[VOICE] WebSocket connected");
+        if (!isRecording) {
+            ws.close();
+            return;
+        }
+        // Wait for session_started before capturing audio
+    };
+
+    ws.onmessage = function (event) {
+        var msg;
+        try {
+            msg = JSON.parse(event.data);
+        } catch (e) {
+            return;
+        }
+
+        console.log("[VOICE] WS message:", msg.message_type, msg.text || "");
+
+        if (msg.message_type === "session_started") {
+            console.log("[VOICE] Session config:", JSON.stringify(msg.config));
+            setVoiceStatus("Listening...");
+            if (isRecording) {
+                startAudioCapture(ws);
+            }
+        } else if (msg.message_type === "partial_transcript") {
+            if (msg.text) {
+                setPartialTranscript(msg.text);
+            }
+        } else if (msg.message_type === "committed_transcript") {
+            var text = msg.text || "";
+            if (text) {
+                searchInput.value = text;
+                searchInput.dispatchEvent(new Event("input"));
+            }
+            stopListening();
+        } else if (
+            msg.message_type === "error" ||
+            msg.message_type === "auth_error" ||
+            msg.message_type === "quota_exceeded"
+        ) {
+            console.warn("[VOICE] WebSocket error:", msg);
+            stopListening();
+        }
+    };
+
+    ws.onerror = function (evt) {
+        console.warn("[VOICE] WebSocket connection error", evt);
+        ws.close();
+        if (isRecording) {
+            fallbackToMediaRecorder();
+        }
+    };
+
+    ws.onclose = function (evt) {
+        console.log("[VOICE] WebSocket closed, code:", evt.code, "reason:", evt.reason);
+        if (activeWebSocket === ws) {
+            activeWebSocket = null;
+        }
+    };
+}
+
+function startAudioCapture(ws) {
+    console.log("[VOICE] Starting audio capture...");
+    navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then(function (stream) {
+            console.log("[VOICE] Got microphone stream");
+            if (!isRecording) {
+                stream.getTracks().forEach(function (t) {
+                    t.stop();
+                });
+                return;
+            }
+
+            activeStream = stream;
+            // Use default (native) sample rate — downsampling to 16kHz
+            // happens in the AudioWorklet / ScriptProcessor.
+            // Requesting sampleRate: 16000 fails in Firefox when the
+            // mic stream was captured at a different rate.
+            var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            activeAudioCtx = audioCtx;
+            console.log("[VOICE] AudioContext sampleRate:", audioCtx.sampleRate);
+
+            // Try AudioWorklet, fall back to ScriptProcessor
+            if (audioCtx.audioWorklet) {
+                audioCtx.audioWorklet
+                    .addModule("audio-processor.js")
+                    .then(function () {
+                        if (!isRecording) return;
+                        var source = audioCtx.createMediaStreamSource(stream);
+                        var processor = new AudioWorkletNode(audioCtx, "pcm-processor");
+                        activeSource = source;
+                        activeProcessor = processor;
+                        var chunkCount = 0;
+                        processor.port.onmessage = function (e) {
+                            if (ws.readyState === WebSocket.OPEN && e.data.pcmChunk) {
+                                chunkCount++;
+                                var chunk = e.data.pcmChunk;
+                                if (chunkCount <= 5 || chunkCount % 50 === 0) {
+                                    var maxAmp = 0;
+                                    for (var j = 0; j < chunk.length; j++) {
+                                        var abs = Math.abs(chunk[j]);
+                                        if (abs > maxAmp) maxAmp = abs;
+                                    }
+                                    console.log(
+                                        "[VOICE] Chunk #" + chunkCount,
+                                        "size:",
+                                        chunk.length,
+                                        "maxAmp:",
+                                        maxAmp,
+                                    );
+                                }
+                                ws.send(
+                                    JSON.stringify({
+                                        message_type: "input_audio_chunk",
+                                        audio_base_64: int16ToBase64(e.data.pcmChunk),
+                                        commit: false,
+                                        sample_rate: 16000,
+                                    }),
+                                );
+                            }
+                        };
+                        source.connect(processor);
+                        processor.connect(audioCtx.destination);
+                    })
+                    .catch(function () {
+                        setupScriptProcessor(audioCtx, stream, ws);
+                    });
+            } else {
+                setupScriptProcessor(audioCtx, stream, ws);
+            }
+        })
+        .catch(function (err) {
+            console.warn("Microphone access failed:", err);
+            stopListening();
+        });
+}
+
+function setupScriptProcessor(audioCtx, stream, ws) {
+    var source = audioCtx.createMediaStreamSource(stream);
+    var processor = audioCtx.createScriptProcessor(4096, 1, 1);
+    activeSource = source;
+    activeProcessor = processor;
+    var ratio = audioCtx.sampleRate / 16000;
+
+    processor.onaudioprocess = function (e) {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        var input = e.inputBuffer.getChannelData(0);
+        var outputLen = Math.floor(input.length / ratio);
+        var output = new Int16Array(outputLen);
+        for (var i = 0; i < outputLen; i++) {
+            var idx = Math.floor(i * ratio);
+            var sample = Math.max(-1, Math.min(1, input[idx]));
+            output[i] = sample * 32767;
+        }
+        ws.send(
+            JSON.stringify({
+                message_type: "input_audio_chunk",
+                audio_base_64: int16ToBase64(output),
+                commit: false,
+                sample_rate: 16000,
+            }),
+        );
+    };
+
+    source.connect(processor);
+    processor.connect(audioCtx.destination);
+}
+
+// --- MediaRecorder fallback (used when WebSocket fails) ---
+
+var hasMediaRecorder = typeof MediaRecorder !== "undefined" && hasMicrophone;
+
+var SILENCE_THRESHOLD = 10;
+var SILENCE_DURATION = 1500;
+var MIN_RECORDING_MS = 1500;
+var MAX_RECORDING_MS = 10000;
+
+var mediaRecorder = null;
+
+function fallbackToMediaRecorder() {
+    // Clean up any WebSocket state
+    if (activeWebSocket) {
+        activeWebSocket.close();
+        activeWebSocket = null;
+    }
+    cleanupAudio();
+
+    if (hasMediaRecorder) {
+        startMediaRecorderFallback();
+    } else if (recognition) {
+        isRecording = false;
+        startBrowserRecognition();
+    } else {
+        stopListening();
+    }
+}
+
+function startMediaRecorderFallback() {
     var chunks = [];
     navigator.mediaDevices
         .getUserMedia({ audio: true })
@@ -326,6 +564,7 @@ function startMediaRecorder() {
                 return;
             }
 
+            activeStream = stream;
             mediaRecorder = new MediaRecorder(stream);
 
             mediaRecorder.ondataavailable = function (event) {
@@ -338,6 +577,7 @@ function startMediaRecorder() {
                 stream.getTracks().forEach(function (track) {
                     track.stop();
                 });
+                activeStream = null;
                 if (chunks.length === 0) {
                     stopListening();
                     return;
@@ -353,7 +593,6 @@ function startMediaRecorder() {
             voiceIndicator.style.display = "block";
             setVoiceStatus("Listening...");
 
-            // Silence detection via Web Audio API
             monitorSilence(stream);
         })
         .catch(function (err) {
@@ -397,7 +636,6 @@ function monitorSilence(stream) {
 
         analyser.getByteTimeDomainData(dataArray);
 
-        // Calculate RMS
         var sum = 0;
         for (var i = 0; i < dataArray.length; i++) {
             var val = (dataArray[i] - 128) / 128;
@@ -414,7 +652,6 @@ function monitorSilence(stream) {
             if (!silenceSince) {
                 silenceSince = Date.now();
             } else if (Date.now() - silenceSince > SILENCE_DURATION) {
-                // Silence after speech — auto-stop
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
                 }
@@ -438,10 +675,67 @@ function startBrowserRecognition() {
     setVoiceStatus("Listening...");
 }
 
+function cleanupAudio() {
+    if (activeProcessor) {
+        activeProcessor.disconnect();
+        activeProcessor = null;
+    }
+    if (activeSource) {
+        activeSource.disconnect();
+        activeSource = null;
+    }
+    if (activeStream) {
+        activeStream.getTracks().forEach(function (t) {
+            t.stop();
+        });
+        activeStream = null;
+    }
+    if (activeAudioCtx) {
+        activeAudioCtx.close().catch(function () {});
+        activeAudioCtx = null;
+    }
+}
+
+function commitAndStop() {
+    // Stop capturing audio but keep the WebSocket open so ElevenLabs can
+    // return the final transcript.  Send a commit message to force
+    // transcription of whatever audio has been received.
+    isRecording = false;
+    recordingTriggeredBy = null;
+    voiceBtn.classList.remove("listening");
+    cleanupAudio();
+
+    if (activeWebSocket && activeWebSocket.readyState === WebSocket.OPEN) {
+        setVoiceStatus("Transcribing...");
+        console.log("[VOICE] Sending commit, waiting for transcript...");
+        activeWebSocket.send(
+            JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: "", commit: true }),
+        );
+        // Safety timeout: if we don't hear back in 5s, close anyway
+        var ws = activeWebSocket;
+        setTimeout(function () {
+            if (activeWebSocket === ws) {
+                console.log("[VOICE] Commit timeout, closing");
+                stopListening();
+            }
+        }, 5000);
+    } else {
+        stopListening();
+    }
+}
+
 function stopListening() {
     isRecording = false;
+    recordingTriggeredBy = null;
     voiceBtn.classList.remove("listening");
     voiceIndicator.style.display = "none";
+    setPartialTranscript("");
+
+    if (activeWebSocket) {
+        activeWebSocket.close();
+        activeWebSocket = null;
+    }
+    cleanupAudio();
 }
 
 function fallbackToBrowser() {
@@ -482,14 +776,45 @@ function uploadAudio(audioBlob) {
 
 voiceBtn.addEventListener("click", function () {
     if (isRecording) {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
+        if (activeWebSocket) {
+            commitAndStop();
+        } else if (mediaRecorder && mediaRecorder.state === "recording") {
             mediaRecorder.stop();
         } else if (recognition) {
             recognition.stop();
             stopListening();
         }
     } else {
-        startListening();
+        startListening("button");
+    }
+});
+
+// --- Spacebar push-to-talk ---
+
+function isTextInputFocused() {
+    var el = document.activeElement;
+    if (!el) return false;
+    var tag = el.tagName.toUpperCase();
+    return tag === "INPUT" || tag === "TEXTAREA" || el.contentEditable === "true";
+}
+
+document.addEventListener("keydown", function (e) {
+    if (e.key !== "Alt") return;
+    if (e.repeat) return;
+    if (isTextInputFocused()) return;
+    if (isRecording) return;
+
+    e.preventDefault();
+    startListening("hotkey");
+});
+
+document.addEventListener("keyup", function (e) {
+    if (e.key !== "Alt") return;
+    if (recordingTriggeredBy !== "hotkey") return;
+
+    e.preventDefault();
+    if (isRecording) {
+        commitAndStop();
     }
 });
 

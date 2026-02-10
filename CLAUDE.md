@@ -60,11 +60,14 @@ For EVERY change to this codebase, the following checks MUST pass before committ
 ### Frontend changes (app/client/)
 1. `npx prettier --write "app/client/**/*.{js,css,html}"` — auto-format
 2. `npx playwright test` — all E2E tests pass (starts server automatically)
+3. Check browser console logs in both Chromium and Firefox for errors/warnings (use Playwright's `page.on('console')` or inspect test traces)
 
 ### CI/CD pipeline changes (.github/workflows/)
 - Push the changes and verify GitHub Actions are green before considering the change complete
 
 ### Any change
+- Run **all** tests (E2E, unit, etc.) — not just the ones you think are affected
+- Check browser console logs in both **Chromium and Firefox** for errors, warnings, or unexpected output
 - Start the app (`./scripts/start.sh`), test API endpoints, verify no errors/warnings in logs
 - If UI changed, update visual snapshots: `npx playwright test --update-snapshots tests/e2e/visual.spec.js`
 

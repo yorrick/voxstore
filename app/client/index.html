@@ -42,6 +42,9 @@
                     Cart (<span id="cart-count" data-testid="cart-count">0</span>)
                 </button>
             </div>
+            <div class="voice-hint" id="voice-hint" data-testid="voice-hint">
+                Press <kbd>Alt</kbd> to voice search
+            </div>
         </header>
 
         <main>
@@ -95,6 +98,11 @@
         >
             <div class="pulse-ring"></div>
             <span>Listening...</span>
+            <div
+                id="partial-transcript"
+                class="partial-transcript"
+                data-testid="partial-transcript"
+            ></div>
         </div>
 
         <script src="sentry.js"></script>

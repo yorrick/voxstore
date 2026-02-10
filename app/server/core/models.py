@@ -39,3 +39,8 @@ class TranscribeResponse(BaseModel):
     text: str
     success: bool
     error: str | None = None
+
+
+class WebSocketTokenResponse(BaseModel):
+    token: str
+    ws_url: str

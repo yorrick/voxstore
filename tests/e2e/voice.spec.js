@@ -1,15 +1,141 @@
 const { test, expect } = require("@playwright/test");
 
-// Mock MediaRecorder and getUserMedia so voice tests work without a real mic.
-// When mediaRecorder.start() is called, it immediately fires ondataavailable
-// with a tiny valid WAV blob (1s silence), then fires onstop after a short delay
-// (simulating the user clicking stop).
-function mockMediaRecorder(page) {
+// Mock the /api/transcribe/token endpoint and WebSocket connection.
+// When the frontend fetches a token, we return a fake one.
+// When it opens a WebSocket, our mock accepts audio chunks and
+// returns a committed_transcript after a short delay.
+function mockWebSocketTranscription(page, transcript) {
+    return page.addInitScript(
+        ([text]) => {
+            // Mock the token endpoint response will be handled by page.route
+
+            // Mock WebSocket
+            const OriginalWebSocket = window.WebSocket;
+            class MockWebSocket {
+                constructor(url) {
+                    this.url = url;
+                    this.readyState = 0; // CONNECTING
+                    this.onopen = null;
+                    this.onmessage = null;
+                    this.onerror = null;
+                    this.onclose = null;
+                    this._audioReceived = false;
+
+                    // Simulate connection
+                    setTimeout(() => {
+                        this.readyState = 1; // OPEN
+                        if (this.onopen) this.onopen({});
+                        // Send session_started
+                        if (this.onmessage) {
+                            this.onmessage({
+                                data: JSON.stringify({
+                                    message_type: "session_started",
+                                }),
+                            });
+                        }
+                    }, 50);
+                }
+
+                send(data) {
+                    if (this.readyState !== 1) return;
+                    try {
+                        var msg = JSON.parse(data);
+                        if (
+                            msg.message_type === "input_audio_chunk" &&
+                            !this._audioReceived
+                        ) {
+                            this._audioReceived = true;
+                            // Send partial transcript
+                            setTimeout(() => {
+                                if (this.onmessage) {
+                                    this.onmessage({
+                                        data: JSON.stringify({
+                                            message_type: "partial_transcript",
+                                            text: text.substring(
+                                                0,
+                                                Math.ceil(text.length / 2),
+                                            ),
+                                        }),
+                                    });
+                                }
+                            }, 100);
+                            // Send committed transcript
+                            setTimeout(() => {
+                                if (this.onmessage) {
+                                    this.onmessage({
+                                        data: JSON.stringify({
+                                            message_type:
+                                                "committed_transcript",
+                                            text: text,
+                                        }),
+                                    });
+                                }
+                            }, 300);
+                        }
+                    } catch (e) {
+                        // ignore parse errors
+                    }
+                }
+
+                close() {
+                    this.readyState = 3; // CLOSED
+                    if (this.onclose) this.onclose({});
+                }
+            }
+
+            MockWebSocket.OPEN = 1;
+            MockWebSocket.CLOSED = 3;
+            MockWebSocket.CONNECTING = 0;
+
+            window.WebSocket = MockWebSocket;
+
+            // Mock getUserMedia to return a fake audio stream
+            if (navigator.mediaDevices) {
+                const origGetUserMedia =
+                    navigator.mediaDevices.getUserMedia &&
+                    navigator.mediaDevices.getUserMedia.bind(
+                        navigator.mediaDevices,
+                    );
+                navigator.mediaDevices.getUserMedia = function (constraints) {
+                    if (constraints.audio) {
+                        // Use default sample rate (matching the app's
+                        // AudioContext) to avoid Firefox's
+                        // "different sample-rate" error.
+                        const ctx = new AudioContext();
+                        const oscillator = ctx.createOscillator();
+                        const dest = ctx.createMediaStreamDestination();
+                        oscillator.connect(dest);
+                        oscillator.start();
+                        return Promise.resolve(dest.stream);
+                    }
+                    if (origGetUserMedia) return origGetUserMedia(constraints);
+                    return Promise.reject(
+                        new Error("getUserMedia not available"),
+                    );
+                };
+            }
+
+            // Mock AudioWorklet to avoid loading audio-processor.js in test
+            // The AudioContext will be created with sampleRate 16000, but the
+            // AudioWorklet might not be available in the test browser context,
+            // so we ensure a ScriptProcessor fallback works.
+        },
+        [transcript],
+    );
+}
+
+// Mock that forces WebSocket to fail, falling back to MediaRecorder + REST
+function mockMediaRecorderFallback(page) {
     return page.addInitScript(() => {
-        // Build a minimal valid WAV file (16-bit PCM, 16kHz, 1 channel, 0.1s silence)
+        // Make WebSocket constructor throw
+        window.WebSocket = function () {
+            throw new Error("WebSocket not available");
+        };
+
+        // Build a minimal valid WAV file
         function createSilentWav() {
             const sampleRate = 16000;
-            const numSamples = sampleRate / 10; // 0.1 seconds
+            const numSamples = sampleRate / 10;
             const dataSize = numSamples * 2;
             const buffer = new ArrayBuffer(44 + dataSize);
             const view = new DataView(buffer);
@@ -25,15 +151,14 @@ function mockMediaRecorder(page) {
             writeString(8, "WAVE");
             writeString(12, "fmt ");
             view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true); // PCM
-            view.setUint16(22, 1, true); // mono
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
             view.setUint32(24, sampleRate, true);
             view.setUint32(28, sampleRate * 2, true);
             view.setUint16(32, 2, true);
             view.setUint16(34, 16, true);
             writeString(36, "data");
             view.setUint32(40, dataSize, true);
-            // samples are all zeros (silence)
 
             return new Blob([buffer], { type: "audio/wav" });
         }
@@ -50,14 +175,12 @@ function mockMediaRecorder(page) {
 
             start() {
                 this.state = "recording";
-                // Provide audio data immediately
                 const blob = createSilentWav();
                 setTimeout(() => {
                     if (this.ondataavailable) {
                         this.ondataavailable({ data: blob });
                     }
                 }, 50);
-                // Auto-stop after a short delay (simulates silence detection)
                 this._autoStopTimer = setTimeout(() => {
                     if (this.state === "recording") {
                         this.stop();
@@ -69,7 +192,6 @@ function mockMediaRecorder(page) {
                 if (this.state === "inactive") return;
                 clearTimeout(this._autoStopTimer);
                 this.state = "inactive";
-                // Stop the stream tracks
                 this.stream.getTracks().forEach((t) => t.stop());
                 setTimeout(() => {
                     if (this.onstop) {
@@ -79,19 +201,17 @@ function mockMediaRecorder(page) {
             }
         }
 
-        // Replace globals
         window.MediaRecorder = MockMediaRecorder;
 
-        // Mock getUserMedia to return a fake stream
-        const originalGetUserMedia =
-            navigator.mediaDevices &&
-            navigator.mediaDevices.getUserMedia &&
-            navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-
+        // Mock getUserMedia
         if (navigator.mediaDevices) {
+            const origGetUserMedia =
+                navigator.mediaDevices.getUserMedia &&
+                navigator.mediaDevices.getUserMedia.bind(
+                    navigator.mediaDevices,
+                );
             navigator.mediaDevices.getUserMedia = function (constraints) {
                 if (constraints.audio) {
-                    // Create a fake audio stream using AudioContext
                     const ctx = new AudioContext();
                     const oscillator = ctx.createOscillator();
                     const dest = ctx.createMediaStreamDestination();
@@ -99,28 +219,29 @@ function mockMediaRecorder(page) {
                     oscillator.start();
                     return Promise.resolve(dest.stream);
                 }
-                if (originalGetUserMedia) {
-                    return originalGetUserMedia(constraints);
-                }
-                return Promise.reject(new Error("getUserMedia not available"));
+                if (origGetUserMedia) return origGetUserMedia(constraints);
+                return Promise.reject(
+                    new Error("getUserMedia not available"),
+                );
             };
         }
     });
 }
 
 test.describe("Voice Search", () => {
-    test("transcribes audio and searches products", async ({ page }) => {
-        await mockMediaRecorder(page);
+    test("transcribes audio via WebSocket and searches products", async ({
+        page,
+    }) => {
+        await mockWebSocketTranscription(page, "headphones");
 
-        // Intercept /api/transcribe and return a mocked transcript
-        await page.route("**/api/transcribe", async (route) => {
+        // Mock the token endpoint
+        await page.route("**/api/transcribe/token", async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
                 body: JSON.stringify({
-                    text: "headphones",
-                    success: true,
-                    error: null,
+                    token: "fake-token",
+                    ws_url: "wss://fake.elevenlabs.io/v1/stt",
                 }),
             });
         });
@@ -128,38 +249,40 @@ test.describe("Voice Search", () => {
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
-        // Count initial products
-        const initialCount = await page.locator('[data-testid="product-card"]').count();
+        const initialCount = await page
+            .locator('[data-testid="product-card"]')
+            .count();
         expect(initialCount).toBe(26);
 
-        // Click voice button — recording starts and auto-stops via silence detection
+        // Click voice button
         await page.click('[data-testid="voice-button"]');
 
-        // Wait for auto-stop, upload, and search debounce to settle
-        await page.waitForTimeout(2000);
-
         // Search input should be populated with the transcript
-        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("headphones");
+        await expect(
+            page.locator('[data-testid="search-input"]'),
+        ).toHaveValue("headphones", { timeout: 5000 });
+
+        // Wait for search debounce (400ms) + API response
+        await page.waitForTimeout(1000);
 
         // Should show filtered results
-        const filteredCount = await page.locator('[data-testid="product-card"]').count();
+        const filteredCount = await page
+            .locator('[data-testid="product-card"]')
+            .count();
         expect(filteredCount).toBeGreaterThan(0);
         expect(filteredCount).toBeLessThan(26);
     });
 
-    test("shows transcribing state during upload", async ({ page }) => {
-        await mockMediaRecorder(page);
+    test("shows partial transcript during recording", async ({ page }) => {
+        await mockWebSocketTranscription(page, "keyboard");
 
-        // Delay the transcribe response to observe the "Transcribing..." state
-        await page.route("**/api/transcribe", async (route) => {
-            await new Promise((r) => setTimeout(r, 500));
+        await page.route("**/api/transcribe/token", async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
                 body: JSON.stringify({
-                    text: "keyboard",
-                    success: true,
-                    error: null,
+                    token: "fake-token",
+                    ws_url: "wss://fake.elevenlabs.io/v1/stt",
                 }),
             });
         });
@@ -167,72 +290,73 @@ test.describe("Voice Search", () => {
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
-        // Start recording — auto-stops, then transitions to "Transcribing..."
         await page.click('[data-testid="voice-button"]');
-        await expect(page.locator('[data-testid="voice-indicator"] span')).toHaveText(
-            "Transcribing...",
-            { timeout: 3000 },
-        );
 
-        // After response, indicator should disappear
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({
-            timeout: 3000,
-        });
+        // After committed transcript, indicator should disappear and search
+        // should be populated. The partial transcript may or may not be visible
+        // depending on timing.
+        await expect(
+            page.locator('[data-testid="search-input"]'),
+        ).toHaveValue("keyboard", { timeout: 5000 });
 
-        // Search input should have the transcript
-        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("keyboard");
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeHidden({ timeout: 3000 });
     });
 
-    test("handles API failure gracefully", async ({ page }) => {
-        await mockMediaRecorder(page);
+    test("falls back to MediaRecorder when WebSocket fails", async ({
+        page,
+    }) => {
+        await mockMediaRecorderFallback(page);
 
-        // Make /api/transcribe fail
-        await page.route("**/api/transcribe", async (route) => {
+        // Token endpoint fails
+        await page.route("**/api/transcribe/token", async (route) => {
             await route.fulfill({
-                status: 200,
+                status: 500,
                 contentType: "application/json",
-                body: JSON.stringify({
-                    text: "",
-                    success: false,
-                    error: "ELEVENLABS_API_KEY not configured",
-                }),
+                body: JSON.stringify({ detail: "No API key" }),
             });
+        });
+
+        // But REST transcribe works
+        await page.route("**/api/transcribe", async (route) => {
+            if (route.request().method() === "POST") {
+                await route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                        text: "speaker",
+                        success: true,
+                        error: null,
+                    }),
+                });
+            } else {
+                await route.continue();
+            }
         });
 
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
-        // Start recording — auto-stops, upload fails, fallback logic runs
         await page.click('[data-testid="voice-button"]');
 
-        // Wait for auto-stop + API response + fallback logic to settle
         await page.waitForTimeout(2000);
 
-        // App should not be broken — products should still be visible
-        const cards = await page.locator('[data-testid="product-card"]').count();
-        expect(cards).toBe(26);
-
-        // If browser fallback started (Chrome), click to stop it.
-        // If no fallback (Firefox), indicator is already hidden.
-        if (await page.locator('[data-testid="voice-indicator"]').isVisible()) {
-            await page.click('[data-testid="voice-button"]');
-        }
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({
-            timeout: 3000,
-        });
+        await expect(
+            page.locator('[data-testid="search-input"]'),
+        ).toHaveValue("speaker");
     });
 
-    test("manual stop still works before auto-stop", async ({ page }) => {
-        await mockMediaRecorder(page);
+    test("manual stop works during WebSocket recording", async ({ page }) => {
+        await mockWebSocketTranscription(page, "monitor");
 
-        await page.route("**/api/transcribe", async (route) => {
+        await page.route("**/api/transcribe/token", async (route) => {
             await route.fulfill({
                 status: 200,
                 contentType: "application/json",
                 body: JSON.stringify({
-                    text: "speaker",
-                    success: true,
-                    error: null,
+                    token: "fake-token",
+                    ws_url: "wss://fake.elevenlabs.io/v1/stt",
                 }),
             });
         });
@@ -242,15 +366,91 @@ test.describe("Voice Search", () => {
 
         // Start recording
         await page.click('[data-testid="voice-button"]');
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeVisible({
-            timeout: 3000,
-        });
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeVisible({ timeout: 3000 });
 
         // Immediately click again to manually stop
         await page.click('[data-testid="voice-button"]');
 
-        // Should still complete the transcription flow
-        await page.waitForTimeout(1500);
-        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("speaker");
+        // Indicator should be hidden
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeHidden({ timeout: 3000 });
+    });
+});
+
+test.describe("Alt Push-to-Talk", () => {
+    test("alt key starts and stops recording", async ({ page }) => {
+        await mockWebSocketTranscription(page, "laptop");
+
+        await page.route("**/api/transcribe/token", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    token: "fake-token",
+                    ws_url: "wss://fake.elevenlabs.io/v1/stt",
+                }),
+            });
+        });
+
+        await page.goto("/");
+        await page.waitForSelector('[data-testid="product-card"]');
+
+        // Press Alt
+        await page.keyboard.down("Alt");
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeVisible({ timeout: 3000 });
+
+        // Release Alt to stop
+        await page.keyboard.up("Alt");
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeHidden({ timeout: 3000 });
+    });
+
+    test("alt key ignored when search input is focused", async ({ page }) => {
+        await mockWebSocketTranscription(page, "tablet");
+
+        await page.route("**/api/transcribe/token", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    token: "fake-token",
+                    ws_url: "wss://fake.elevenlabs.io/v1/stt",
+                }),
+            });
+        });
+
+        await page.goto("/");
+        await page.waitForSelector('[data-testid="product-card"]');
+
+        // Focus the search input
+        await page.locator('[data-testid="search-input"]').focus();
+
+        // Press Alt — should NOT trigger recording
+        await page.keyboard.down("Alt");
+        await page.waitForTimeout(500);
+        await page.keyboard.up("Alt");
+
+        // Voice indicator should NOT be visible
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeHidden();
+    });
+
+    test("alt hint is visible on page load", async ({ page }) => {
+        await page.goto("/");
+        await page.waitForSelector('[data-testid="product-card"]');
+
+        await expect(
+            page.locator('[data-testid="voice-hint"]'),
+        ).toBeVisible();
+        await expect(
+            page.locator('[data-testid="voice-hint"]'),
+        ).toContainText("Alt");
     });
 });

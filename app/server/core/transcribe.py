@@ -6,6 +6,8 @@ import httpx
 logger = logging.getLogger(__name__)
 
 ELEVENLABS_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+ELEVENLABS_TOKEN_URL = "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe"
+ELEVENLABS_WS_BASE = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
 
 
 class TranscriptionError(Exception):
@@ -69,6 +71,61 @@ async def transcribe_audio(audio_data: bytes, content_type: str) -> str:
 
     except httpx.TimeoutException as e:
         raise TranscriptionError("Transcription request timed out") from e
+    except httpx.RequestError as e:
+        raise TranscriptionError(f"Network error: {e}") from e
+    except TranscriptionError:
+        raise
+    except Exception as e:
+        raise TranscriptionError(f"Unexpected error: {e}") from e
+
+
+async def get_websocket_token() -> dict[str, str]:
+    """Get a single-use WebSocket token for realtime transcription.
+
+    Returns:
+        Dict with 'token' and 'ws_url' keys.
+
+    Raises:
+        TranscriptionError: If token generation fails.
+    """
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise TranscriptionError("ELEVENLABS_API_KEY not configured")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                ELEVENLABS_TOKEN_URL,
+                headers={"xi-api-key": api_key},
+            )
+
+        if response.status_code == 401:
+            raise TranscriptionError("Invalid ElevenLabs API key")
+        if response.status_code != 200:
+            logger.error(
+                "[ELEVENLABS] Token error %d: %s",
+                response.status_code,
+                response.text,
+            )
+            raise TranscriptionError(f"ElevenLabs token error: {response.status_code}")
+
+        data = response.json()
+        token = data.get("token", "")
+        if not token:
+            raise TranscriptionError("Empty token returned")
+
+        ws_url = (
+            f"{ELEVENLABS_WS_BASE}"
+            f"?token={token}"
+            f"&model_id=scribe_v2_realtime"
+            f"&commit_strategy=vad"
+            f"&audio_format=pcm_16000"
+            f"&vad_silence_threshold_secs=1.5"
+        )
+        return {"token": token, "ws_url": ws_url}
+
+    except httpx.TimeoutException as e:
+        raise TranscriptionError("Token request timed out") from e
     except httpx.RequestError as e:
         raise TranscriptionError(f"Network error: {e}") from e
     except TranscriptionError:

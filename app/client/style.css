@@ -95,6 +95,25 @@ header {
     }
 }
 
+.voice-hint {
+    text-align: center;
+    font-size: 12px;
+    color: #888;
+    padding: 6px 0 0;
+}
+
+.voice-hint kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    color: #555;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 1px 0 #bbb;
+}
+
 .cart-btn {
     background: #1d1d1f;
     color: white;
@@ -411,6 +430,19 @@ main {
         transform: scale(0.9);
         opacity: 1;
     }
+}
+
+.partial-transcript {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #aaa;
+    min-height: 20px;
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.partial-transcript:empty {
+    display: none;
 }
 
 /* Responsive */
