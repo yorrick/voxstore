@@ -28,6 +28,7 @@ from fastapi import FastAPI, Request
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from autopilot.models.sentry_issue import SentryIssue
 from autopilot.modules.sentry_parser import parse_sentry_webhook
 from autopilot.pipeline import run_pipeline
 
@@ -37,6 +38,23 @@ PORT = int(os.getenv("PORT", "8002"))
 REPO_PATH = os.getenv("REPO_PATH", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 app = FastAPI(title="VoxStore Autopilot", description="Self-healing webhook server")
+
+
+def _sentry_error_to_issue(error) -> SentryIssue:
+    """Convert a legacy SentryError to SentryIssue for the new pipeline."""
+    return SentryIssue(
+        id=error.event_id,
+        title=error.title,
+        culprit=error.culprit,
+        level=error.level,
+        status="unresolved",
+        first_seen="",
+        last_seen="",
+        count=1,
+        permalink=error.url,
+        short_id="",
+        metadata={},
+    )
 
 
 @app.post("/sentry-webhook")
@@ -53,8 +71,9 @@ async def sentry_webhook(request: Request):
         print(f"Culprit: {error.culprit}")
         print(f"Level: {error.level}")
 
+        issue = _sentry_error_to_issue(error)
         # Run pipeline in background so we return 200 immediately
-        asyncio.create_task(run_pipeline(error, REPO_PATH))
+        asyncio.create_task(run_pipeline(issue, REPO_PATH))
 
         return {
             "status": "accepted",
