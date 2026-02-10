@@ -5,8 +5,14 @@ services:
     buildCommand: pip install uv && cd app/server && uv sync --frozen
     startCommand: cd app/server && uv run uvicorn server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-    envVarGroups:
-      - name: voxstore-dev-env
+    envVars:
+      - fromGroup: voxstore-dev-env
+      - key: SENTRY_DSN
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
 
   - type: web
     name: voxstore-prod
@@ -14,28 +20,22 @@ services:
     buildCommand: pip install uv && cd app/server && uv sync --frozen
     startCommand: cd app/server && uv run uvicorn server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-    envVarGroups:
-      - name: voxstore-prod-env
+    envVars:
+      - fromGroup: voxstore-prod-env
+      - key: SENTRY_DSN
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
 
 envVarGroups:
   - name: voxstore-dev-env
     envVars:
       - key: ALLOWED_ORIGINS
         value: https://voxstore-dev.onrender.com
-      - key: SENTRY_DSN
-        sync: false
-      - key: ELEVENLABS_API_KEY
-        sync: false
-      - key: OPENROUTER_API_KEY
-        sync: false
 
   - name: voxstore-prod-env
     envVars:
       - key: ALLOWED_ORIGINS
         value: https://voxstore-prod.onrender.com
-      - key: SENTRY_DSN
-        sync: false
-      - key: ELEVENLABS_API_KEY
-        sync: false
-      - key: OPENROUTER_API_KEY
-        sync: false
