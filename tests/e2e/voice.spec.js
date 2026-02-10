@@ -40,10 +40,7 @@ function mockWebSocketTranscription(page, transcript) {
                     if (this.readyState !== 1) return;
                     try {
                         var msg = JSON.parse(data);
-                        if (
-                            msg.message_type === "input_audio_chunk" &&
-                            !this._audioReceived
-                        ) {
+                        if (msg.message_type === "input_audio_chunk" && !this._audioReceived) {
                             this._audioReceived = true;
                             // Send partial transcript
                             setTimeout(() => {
@@ -51,10 +48,7 @@ function mockWebSocketTranscription(page, transcript) {
                                     this.onmessage({
                                         data: JSON.stringify({
                                             message_type: "partial_transcript",
-                                            text: text.substring(
-                                                0,
-                                                Math.ceil(text.length / 2),
-                                            ),
+                                            text: text.substring(0, Math.ceil(text.length / 2)),
                                         }),
                                     });
                                 }
@@ -64,8 +58,7 @@ function mockWebSocketTranscription(page, transcript) {
                                 if (this.onmessage) {
                                     this.onmessage({
                                         data: JSON.stringify({
-                                            message_type:
-                                                "committed_transcript",
+                                            message_type: "committed_transcript",
                                             text: text,
                                         }),
                                     });
@@ -93,9 +86,7 @@ function mockWebSocketTranscription(page, transcript) {
             if (navigator.mediaDevices) {
                 const origGetUserMedia =
                     navigator.mediaDevices.getUserMedia &&
-                    navigator.mediaDevices.getUserMedia.bind(
-                        navigator.mediaDevices,
-                    );
+                    navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
                 navigator.mediaDevices.getUserMedia = function (constraints) {
                     if (constraints.audio) {
                         // Use default sample rate (matching the app's
@@ -109,9 +100,7 @@ function mockWebSocketTranscription(page, transcript) {
                         return Promise.resolve(dest.stream);
                     }
                     if (origGetUserMedia) return origGetUserMedia(constraints);
-                    return Promise.reject(
-                        new Error("getUserMedia not available"),
-                    );
+                    return Promise.reject(new Error("getUserMedia not available"));
                 };
             }
 
@@ -207,9 +196,7 @@ function mockMediaRecorderFallback(page) {
         if (navigator.mediaDevices) {
             const origGetUserMedia =
                 navigator.mediaDevices.getUserMedia &&
-                navigator.mediaDevices.getUserMedia.bind(
-                    navigator.mediaDevices,
-                );
+                navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
             navigator.mediaDevices.getUserMedia = function (constraints) {
                 if (constraints.audio) {
                     const ctx = new AudioContext();
@@ -220,18 +207,14 @@ function mockMediaRecorderFallback(page) {
                     return Promise.resolve(dest.stream);
                 }
                 if (origGetUserMedia) return origGetUserMedia(constraints);
-                return Promise.reject(
-                    new Error("getUserMedia not available"),
-                );
+                return Promise.reject(new Error("getUserMedia not available"));
             };
         }
     });
 }
 
 test.describe("Voice Search", () => {
-    test("transcribes audio via WebSocket and searches products", async ({
-        page,
-    }) => {
+    test("transcribes audio via WebSocket and searches products", async ({ page }) => {
         await mockWebSocketTranscription(page, "headphones");
 
         // Mock the token endpoint
@@ -249,28 +232,23 @@ test.describe("Voice Search", () => {
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
-        const initialCount = await page
-            .locator('[data-testid="product-card"]')
-            .count();
+        const initialCount = await page.locator('[data-testid="product-card"]').count();
         expect(initialCount).toBe(26);
 
         // Click voice button
         await page.click('[data-testid="voice-button"]');
 
         // Search input should be populated with the transcript
-        await expect(
-            page.locator('[data-testid="search-input"]'),
-        ).toHaveValue("headphones", { timeout: 5000 });
+        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("headphones", {
+            timeout: 5000,
+        });
 
-        // Wait for search debounce (400ms) + API response
-        await page.waitForTimeout(1000);
-
-        // Should show filtered results
-        const filteredCount = await page
-            .locator('[data-testid="product-card"]')
-            .count();
-        expect(filteredCount).toBeGreaterThan(0);
-        expect(filteredCount).toBeLessThan(26);
+        // Should show filtered results (wait for debounce + embedding API)
+        await expect(async () => {
+            const filteredCount = await page.locator('[data-testid="product-card"]').count();
+            expect(filteredCount).toBeGreaterThan(0);
+            expect(filteredCount).toBeLessThan(initialCount);
+        }).toPass({ timeout: 5000 });
     });
 
     test("shows partial transcript during recording", async ({ page }) => {
@@ -295,18 +273,14 @@ test.describe("Voice Search", () => {
         // After committed transcript, indicator should disappear and search
         // should be populated. The partial transcript may or may not be visible
         // depending on timing.
-        await expect(
-            page.locator('[data-testid="search-input"]'),
-        ).toHaveValue("keyboard", { timeout: 5000 });
+        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("keyboard", {
+            timeout: 5000,
+        });
 
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeHidden({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
     });
 
-    test("falls back to MediaRecorder when WebSocket fails", async ({
-        page,
-    }) => {
+    test("falls back to MediaRecorder when WebSocket fails", async ({ page }) => {
         await mockMediaRecorderFallback(page);
 
         // Token endpoint fails
@@ -342,9 +316,7 @@ test.describe("Voice Search", () => {
 
         await page.waitForTimeout(2000);
 
-        await expect(
-            page.locator('[data-testid="search-input"]'),
-        ).toHaveValue("speaker");
+        await expect(page.locator('[data-testid="search-input"]')).toHaveValue("speaker");
     });
 
     test("manual stop works during WebSocket recording", async ({ page }) => {
@@ -366,17 +338,15 @@ test.describe("Voice Search", () => {
 
         // Start recording
         await page.click('[data-testid="voice-button"]');
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeVisible({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeVisible({
+            timeout: 3000,
+        });
 
         // Immediately click again to manually stop
         await page.click('[data-testid="voice-button"]');
 
         // Indicator should be hidden
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeHidden({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
     });
 });
 
@@ -400,15 +370,13 @@ test.describe("Alt Push-to-Talk", () => {
 
         // Press Alt
         await page.keyboard.down("Alt");
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeVisible({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeVisible({
+            timeout: 3000,
+        });
 
         // Release Alt to stop
         await page.keyboard.up("Alt");
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeHidden({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
     });
 
     test("alt key ignored when search input is focused", async ({ page }) => {
@@ -437,20 +405,14 @@ test.describe("Alt Push-to-Talk", () => {
         await page.keyboard.up("Alt");
 
         // Voice indicator should NOT be visible
-        await expect(
-            page.locator('[data-testid="voice-indicator"]'),
-        ).toBeHidden();
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden();
     });
 
     test("alt hint is visible on page load", async ({ page }) => {
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
-        await expect(
-            page.locator('[data-testid="voice-hint"]'),
-        ).toBeVisible();
-        await expect(
-            page.locator('[data-testid="voice-hint"]'),
-        ).toContainText("Alt");
+        await expect(page.locator('[data-testid="voice-hint"]')).toBeVisible();
+        await expect(page.locator('[data-testid="voice-hint"]')).toContainText("Alt");
     });
 });

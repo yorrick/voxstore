@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.db import get_connection, init_db
+from core.embeddings import init_embeddings
 from core.models import (
     AddToCartRequest,
     CartItem,
@@ -69,6 +70,17 @@ app_start_time = datetime.now()
 # Initialize database on startup
 init_db()
 logger.info("[STARTUP] Database initialized with seed data")
+
+# Initialize semantic search embeddings
+try:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM products")
+    all_products = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    init_embeddings(all_products)
+except Exception as e:
+    logger.warning("[STARTUP] Failed to initialize embeddings: %s", e)
 
 
 # --- Product endpoints ---

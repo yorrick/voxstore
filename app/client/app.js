@@ -2,6 +2,14 @@
 
 const API_BASE = "/api";
 
+// Strip punctuation and extra whitespace from voice transcripts
+function cleanTranscript(text) {
+    return text
+        .replace(/[.,!?;:]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 // State
 let products = [];
 let cart = [];
@@ -272,7 +280,7 @@ try {
         recognition.lang = "en-US";
 
         recognition.onresult = function (event) {
-            var transcript = event.results[0][0].transcript;
+            var transcript = cleanTranscript(event.results[0][0].transcript);
             searchInput.value = transcript;
             searchInput.dispatchEvent(new Event("input"));
             stopListening();
@@ -383,7 +391,7 @@ function connectWebSocket(wsUrl) {
                 setPartialTranscript(msg.text);
             }
         } else if (msg.message_type === "committed_transcript") {
-            var text = msg.text || "";
+            var text = cleanTranscript(msg.text || "");
             if (text) {
                 searchInput.value = text;
                 searchInput.dispatchEvent(new Event("input"));
@@ -760,7 +768,7 @@ function uploadAudio(audioBlob) {
         })
         .then(function (data) {
             if (data.success && data.text) {
-                searchInput.value = data.text;
+                searchInput.value = cleanTranscript(data.text);
                 searchInput.dispatchEvent(new Event("input"));
                 stopListening();
             } else {
