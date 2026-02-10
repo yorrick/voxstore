@@ -48,6 +48,10 @@ async def transcribe_audio(audio_data: bytes, content_type: str) -> str:
             )
 
         if response.status_code == 401:
+            body = response.text
+            if "quota_exceeded" in body:
+                logger.warning("[ELEVENLABS] Quota exceeded: %s", body)
+                raise TranscriptionError("ElevenLabs API quota exceeded")
             raise TranscriptionError("Invalid ElevenLabs API key")
         if response.status_code != 200:
             logger.error(

@@ -56,6 +56,23 @@ async def test_transcribe_audio_invalid_key():
 
 
 @pytest.mark.asyncio
+async def test_transcribe_audio_quota_exceeded():
+    mock_response = _mock_response(
+        401,
+        text='{"detail":{"status":"quota_exceeded","message":"quota exceeded"}}',
+    )
+
+    with patch("core.transcribe.httpx.AsyncClient") as mock_client_cls:
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_cls.return_value.__aenter__.return_value = instance
+
+        with patch.dict("os.environ", {"ELEVENLABS_API_KEY": "test-key"}):
+            with pytest.raises(TranscriptionError, match="quota exceeded"):
+                await transcribe_audio(b"fake-audio", "audio/webm")
+
+
+@pytest.mark.asyncio
 async def test_transcribe_audio_api_error():
     mock_response = _mock_response(500, text="Internal Server Error")
 
