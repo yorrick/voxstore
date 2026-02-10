@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: voxstore
+    name: voxstore-dev
     runtime: python
     buildCommand: pip install uv && cd app/server && uv sync --frozen
     startCommand: cd app/server && uv run uvicorn server:app --host 0.0.0.0 --port $PORT
