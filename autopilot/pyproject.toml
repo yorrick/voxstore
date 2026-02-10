@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest==8.4.1",
+    "pytest-asyncio>=0.25.0",
     "ruff>=0.12.3",
     "pyright>=1.1.390",
 ]
@@ -23,6 +24,7 @@ dev = [
 [dependency-groups]
 dev = [
     "pytest>=8.4.1",
+    "pytest-asyncio>=0.25.0",
     "pyright>=1.1.390",
 ]
 
@@ -61,6 +63,9 @@ select = [
 ignore = [
   "B008",   # Allow function calls in argument defaults (FastAPI Depends pattern)
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.ruff.format]
 quote-style = "double"
