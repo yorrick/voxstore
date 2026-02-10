@@ -24,7 +24,7 @@ from core.models import (
 from core.search import search_products
 from core.transcribe import TranscriptionError, get_websocket_token, transcribe_audio
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"), override=True)
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 # Configure logging
 logging.basicConfig(
@@ -251,6 +251,15 @@ async def remove_from_cart(item_id: int):
     return {"message": "Item removed from cart"}
 
 
+# --- Config ---
+
+
+@app.get("/api/config")
+async def get_config():
+    """Return public client configuration (e.g. Sentry DSN)."""
+    return {"sentry_dsn": os.environ.get("SENTRY_DSN", "")}
+
+
 # --- Health ---
 
 
@@ -263,6 +272,12 @@ async def health_check():
     conn.close()
     uptime = (datetime.now() - app_start_time).total_seconds()
     return HealthCheckResponse(status="ok", products_count=count, uptime_seconds=uptime)
+
+
+@app.get("/sentry-debug")
+async def trigger_error():
+    """Trigger a test error to verify Sentry is working."""
+    _ = 1 / 0
 
 
 # --- Serve static frontend ---

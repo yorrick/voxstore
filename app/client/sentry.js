@@ -1,30 +1,41 @@
 // Sentry Browser SDK initialization
-// In production, load the Sentry SDK from CDN and configure here.
-// For now, this is a placeholder that will be replaced with the real SDK.
+// Fetches DSN from /api/config and loads the SDK from CDN.
 
 (function () {
-    // Replace with your actual Sentry DSN
-    var SENTRY_DSN = "";
+    var SDK_VERSION = "10.38.0";
+    var SDK_URL = "https://browser.sentry-cdn.com/" + SDK_VERSION + "/bundle.min.js";
 
-    if (!SENTRY_DSN) {
-        console.log("[Sentry] No DSN configured, error tracking disabled");
-        return;
+    function loadScript(src, onload) {
+        var script = document.createElement("script");
+        script.src = src;
+        script.crossOrigin = "anonymous";
+        script.onload = onload;
+        script.onerror = function () {
+            console.warn("[Sentry] Failed to load SDK from CDN");
+        };
+        document.head.appendChild(script);
     }
 
-    // Load Sentry SDK dynamically
-    var script = document.createElement("script");
-    script.src = "https://browser.sentry-cdn.com/8.49.0/bundle.min.js";
-    script.crossOrigin = "anonymous";
-    script.onload = function () {
-        if (window.Sentry) {
-            window.Sentry.init({
-                dsn: SENTRY_DSN,
-                tracesSampleRate: 1.0,
-                replaysSessionSampleRate: 0.1,
-                replaysOnErrorSampleRate: 1.0,
+    function initSentry(dsn) {
+        if (!window.Sentry) return;
+        window.Sentry.init({ dsn: dsn });
+        console.log("[Sentry] Initialized");
+    }
+
+    fetch("/api/config")
+        .then(function (res) {
+            return res.json();
+        })
+        .then(function (config) {
+            if (!config.sentry_dsn) {
+                console.log("[Sentry] No DSN configured, error tracking disabled");
+                return;
+            }
+            loadScript(SDK_URL, function () {
+                initSentry(config.sentry_dsn);
             });
-            console.log("[Sentry] Initialized");
-        }
-    };
-    document.head.appendChild(script);
+        })
+        .catch(function () {
+            console.warn("[Sentry] Failed to fetch config");
+        });
 })();
