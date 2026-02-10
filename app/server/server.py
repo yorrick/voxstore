@@ -5,7 +5,7 @@ from datetime import datetime
 
 import sentry_sdk
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,10 +17,12 @@ from core.models import (
     HealthCheckResponse,
     Product,
     SearchResponse,
+    TranscribeResponse,
 )
 from core.search import search_products
+from core.transcribe import TranscriptionError, transcribe_audio
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Configure logging
 logging.basicConfig(
@@ -137,6 +139,27 @@ async def list_categories():
     rows = cursor.fetchall()
     conn.close()
     return [row["category"] for row in rows]
+
+
+# --- Transcription endpoint ---
+
+
+@app.post("/api/transcribe", response_model=TranscribeResponse)
+async def transcribe_endpoint(file: UploadFile = File(...)):
+    """Transcribe audio using ElevenLabs Scribe v2."""
+    if not file.content_type or not file.content_type.startswith("audio/"):
+        return TranscribeResponse(text="", success=False, error="Invalid file type. Must be audio.")
+
+    try:
+        audio_data = await file.read()
+        if len(audio_data) == 0:
+            return TranscribeResponse(text="", success=False, error="Empty audio file")
+
+        text = await transcribe_audio(audio_data, file.content_type)
+        return TranscribeResponse(text=text, success=True)
+    except TranscriptionError as e:
+        logger.warning("[TRANSCRIBE] %s", e)
+        return TranscribeResponse(text="", success=False, error=str(e))
 
 
 # --- Cart endpoints ---

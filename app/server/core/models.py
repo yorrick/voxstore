@@ -33,3 +33,9 @@ class HealthCheckResponse(BaseModel):
     status: str
     products_count: int
     uptime_seconds: float
+
+
+class TranscribeResponse(BaseModel):
+    text: str
+    success: bool
+    error: str | None = None

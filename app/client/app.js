@@ -252,7 +252,10 @@ searchInput.addEventListener("input", function () {
 // --- Voice search ---
 
 var recognition = null;
+var mediaRecorder = null;
+var isRecording = false;
 
+// Initialize browser SpeechRecognition as fallback
 try {
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -275,30 +278,216 @@ try {
         recognition.onend = function () {
             stopListening();
         };
-    } else {
-        voiceBtn.style.display = "none";
     }
 } catch (e) {
     console.warn("Speech recognition not supported:", e);
+}
+
+var hasMediaRecorder =
+    typeof MediaRecorder !== "undefined" &&
+    navigator.mediaDevices &&
+    navigator.mediaDevices.getUserMedia;
+
+if (!hasMediaRecorder && !recognition) {
     voiceBtn.style.display = "none";
 }
 
+function setVoiceStatus(message) {
+    voiceIndicator.querySelector("span").textContent = message;
+}
+
 function startListening() {
+    if (isRecording) return;
+    isRecording = true;
+
+    if (hasMediaRecorder) {
+        startMediaRecorder();
+    } else if (recognition) {
+        startBrowserRecognition();
+    } else {
+        isRecording = false;
+    }
+}
+
+var SILENCE_THRESHOLD = 10; // RMS level below which we consider silence
+var SILENCE_DURATION = 1500; // ms of silence after speech before auto-stop
+var MIN_RECORDING_MS = 1500; // don't auto-stop before this
+var MAX_RECORDING_MS = 10000; // safety net: stop after 10s
+
+function startMediaRecorder() {
+    var chunks = [];
+    navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then(function (stream) {
+            if (!isRecording) {
+                stream.getTracks().forEach(function (t) {
+                    t.stop();
+                });
+                return;
+            }
+
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = function (event) {
+                if (event.data.size > 0) {
+                    chunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = function () {
+                stream.getTracks().forEach(function (track) {
+                    track.stop();
+                });
+                if (chunks.length === 0) {
+                    stopListening();
+                    return;
+                }
+                var audioBlob = new Blob(chunks, {
+                    type: mediaRecorder.mimeType || "audio/webm",
+                });
+                uploadAudio(audioBlob);
+            };
+
+            mediaRecorder.start();
+            voiceBtn.classList.add("listening");
+            voiceIndicator.style.display = "block";
+            setVoiceStatus("Listening...");
+
+            // Silence detection via Web Audio API
+            monitorSilence(stream);
+        })
+        .catch(function (err) {
+            console.warn("Microphone access failed:", err);
+            isRecording = false;
+            if (recognition) {
+                startBrowserRecognition();
+            }
+        });
+}
+
+function monitorSilence(stream) {
+    var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var source = audioCtx.createMediaStreamSource(stream);
+    var analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+
+    var dataArray = new Uint8Array(analyser.fftSize);
+    var speechDetected = false;
+    var silenceSince = null;
+    var startedAt = Date.now();
+    var maxTimer = setTimeout(function () {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+        }
+        cleanup();
+    }, MAX_RECORDING_MS);
+
+    function cleanup() {
+        clearTimeout(maxTimer);
+        source.disconnect();
+        audioCtx.close();
+    }
+
+    function checkLevel() {
+        if (!isRecording || !mediaRecorder || mediaRecorder.state !== "recording") {
+            cleanup();
+            return;
+        }
+
+        analyser.getByteTimeDomainData(dataArray);
+
+        // Calculate RMS
+        var sum = 0;
+        for (var i = 0; i < dataArray.length; i++) {
+            var val = (dataArray[i] - 128) / 128;
+            sum += val * val;
+        }
+        var rms = Math.sqrt(sum / dataArray.length) * 100;
+
+        var elapsed = Date.now() - startedAt;
+
+        if (rms > SILENCE_THRESHOLD) {
+            speechDetected = true;
+            silenceSince = null;
+        } else if (speechDetected && elapsed > MIN_RECORDING_MS) {
+            if (!silenceSince) {
+                silenceSince = Date.now();
+            } else if (Date.now() - silenceSince > SILENCE_DURATION) {
+                // Silence after speech — auto-stop
+                if (mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                }
+                cleanup();
+                return;
+            }
+        }
+
+        requestAnimationFrame(checkLevel);
+    }
+
+    checkLevel();
+}
+
+function startBrowserRecognition() {
     if (!recognition) return;
+    isRecording = true;
     recognition.start();
     voiceBtn.classList.add("listening");
     voiceIndicator.style.display = "block";
+    setVoiceStatus("Listening...");
 }
 
 function stopListening() {
+    isRecording = false;
     voiceBtn.classList.remove("listening");
     voiceIndicator.style.display = "none";
 }
 
+function fallbackToBrowser() {
+    stopListening();
+    if (recognition) {
+        startBrowserRecognition();
+    }
+}
+
+function uploadAudio(audioBlob) {
+    setVoiceStatus("Transcribing...");
+
+    var formData = new FormData();
+    formData.append("file", audioBlob, "recording.webm");
+
+    fetch(API_BASE + "/transcribe", {
+        method: "POST",
+        body: formData,
+    })
+        .then(function (res) {
+            return res.json();
+        })
+        .then(function (data) {
+            if (data.success && data.text) {
+                searchInput.value = data.text;
+                searchInput.dispatchEvent(new Event("input"));
+                stopListening();
+            } else {
+                console.warn("Transcription failed:", data.error);
+                fallbackToBrowser();
+            }
+        })
+        .catch(function (err) {
+            console.warn("Transcription request failed:", err);
+            fallbackToBrowser();
+        });
+}
+
 voiceBtn.addEventListener("click", function () {
-    if (voiceBtn.classList.contains("listening")) {
-        recognition.stop();
-        stopListening();
+    if (isRecording) {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+        } else if (recognition) {
+            recognition.stop();
+            stopListening();
+        }
     } else {
         startListening();
     }
