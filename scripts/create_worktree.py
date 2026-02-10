@@ -15,6 +15,8 @@ Usage:
     ./scripts/create_worktree.py <branch>
 """
 
+import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -49,6 +51,37 @@ def _copy_env_files(repo_root: Path, worktree_dir: Path) -> None:
             print(f"  Copied {src.relative_to(repo_root)}", file=sys.stderr)
         else:
             print(f"  Skipped {loc or '.'}/{'.env'} (not found)", file=sys.stderr)
+
+
+def _copy_db_dir(repo_root: Path, worktree_dir: Path) -> None:
+    """Copy app/server/db/ (SQLite DB + embeddings cache) to the worktree."""
+    src = repo_root / "app/server/db"
+    if not src.is_dir():
+        return
+    dst = worktree_dir / "app/server/db"
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+    print(
+        f"  Copied app/server/db/ ({len(list(dst.iterdir()))} files)", file=sys.stderr
+    )
+
+
+def _branch_port(branch: str) -> int:
+    """Derive a deterministic port in 8001-8999 from the branch name."""
+    h = int(hashlib.sha1(branch.encode()).hexdigest(), 16)
+    return 8001 + (h % 999)
+
+
+def _patch_env_var(env_file: Path, key: str, value: str) -> None:
+    """Replace a KEY=value line in an env file."""
+    if not env_file.exists():
+        return
+    text = env_file.read_text()
+    new_text = re.sub(
+        rf"(^.*{re.escape(key)}=).*", rf"\g<1>{value}", text, flags=re.MULTILINE
+    )
+    if new_text != text:
+        env_file.write_text(new_text)
+        print(f"  Patched {key}={value} in {env_file.name}", file=sys.stderr)
 
 
 def main() -> None:
@@ -87,6 +120,10 @@ def main() -> None:
 
     print("Copying environment files...", file=sys.stderr)
     _copy_env_files(repo_root, worktree_dir)
+    _copy_db_dir(repo_root, worktree_dir)
+    _patch_env_var(worktree_dir / ".env", "CLAUDE_CODE_TASK_LIST_ID", branch)
+    port = _branch_port(branch)
+    _patch_env_var(worktree_dir / "app/server/.env", "BACKEND_PORT", str(port))
 
     print(f"\nWorktree ready: trees/{branch}", file=sys.stderr)
     print("Run:", file=sys.stderr)
