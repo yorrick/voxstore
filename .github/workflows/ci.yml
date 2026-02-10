@@ -98,9 +98,11 @@ jobs:
         run: npx prettier --check "app/client/**/*.{js,css,html}"
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox
 
       - name: Run E2E tests
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: npx playwright test
 
       - name: Upload test artifacts

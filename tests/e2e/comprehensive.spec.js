@@ -258,7 +258,7 @@ test.describe("Comprehensive Feature Tests", () => {
             const count = await page.locator('[data-testid="product-card"]').count();
             expect(count).toBeGreaterThan(0);
             expect(count).toBeLessThan(26);
-        }).toPass({ timeout: 3000 });
+        }).toPass({ timeout: 10000 });
 
         const names = await page.locator(".product-name").allTextContents();
         const descriptions = await page.locator(".product-description").allTextContents();
@@ -274,7 +274,7 @@ test.describe("Comprehensive Feature Tests", () => {
 
         await expect(page.locator('[data-testid="products-grid"]')).toContainText(
             "No products found",
-            { timeout: 3000 },
+            { timeout: 10000 },
         );
 
         const count = await page.locator('[data-testid="product-card"]').count();
@@ -290,14 +290,14 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
             expect(count).toBeLessThan(26);
-        }).toPass({ timeout: 3000 });
+        }).toPass({ timeout: 10000 });
 
         await page.fill('[data-testid="search-input"]', "");
 
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
             expect(count).toBe(26);
-        }).toPass({ timeout: 3000 });
+        }).toPass({ timeout: 10000 });
     });
 
     test("search is case insensitive", async ({ page }) => {

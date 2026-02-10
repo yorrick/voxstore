@@ -10,8 +10,8 @@ venv/
 .env
 *.env.local
 
-# Database
-app/server/db/
+# Database (keep embeddings cache tracked for CI semantic search)
+app/server/db/*.db
 
 # IDE
 .vscode/
