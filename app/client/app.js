@@ -809,8 +809,11 @@ function isTextInputFocused() {
 document.addEventListener("keydown", function (e) {
     if (e.key !== "Alt") return;
     if (e.repeat) return;
-    if (isTextInputFocused()) return;
     if (isRecording) return;
+
+    if (isTextInputFocused()) {
+        document.activeElement.blur();
+    }
 
     e.preventDefault();
     startListening("hotkey");

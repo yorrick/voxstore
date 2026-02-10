@@ -379,7 +379,7 @@ test.describe("Alt Push-to-Talk", () => {
         await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
     });
 
-    test("alt key ignored when search input is focused", async ({ page }) => {
+    test("alt key works when search input is focused", async ({ page }) => {
         await mockWebSocketTranscription(page, "tablet");
 
         await page.route("**/api/transcribe/token", async (route) => {
@@ -399,13 +399,23 @@ test.describe("Alt Push-to-Talk", () => {
         // Focus the search input
         await page.locator('[data-testid="search-input"]').focus();
 
-        // Press Alt — should NOT trigger recording
+        // Press Alt — should trigger recording and blur input
         await page.keyboard.down("Alt");
-        await page.waitForTimeout(500);
-        await page.keyboard.up("Alt");
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeVisible({ timeout: 3000 });
 
-        // Voice indicator should NOT be visible
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden();
+        // Search input should no longer be focused
+        const focused = await page.evaluate(
+            () => document.activeElement?.id !== "search-input",
+        );
+        expect(focused).toBe(true);
+
+        // Release Alt to stop
+        await page.keyboard.up("Alt");
+        await expect(
+            page.locator('[data-testid="voice-indicator"]'),
+        ).toBeHidden({ timeout: 3000 });
     });
 
     test("alt hint is visible on page load", async ({ page }) => {
