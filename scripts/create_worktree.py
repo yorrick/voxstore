@@ -125,6 +125,8 @@ def main() -> None:
     port = _branch_port(branch)
     _patch_env_var(worktree_dir / "app/server/.env", "BACKEND_PORT", str(port))
 
+    subprocess.run(["direnv", "allow"], cwd=worktree_dir)
+
     print(f"\nWorktree ready: trees/{branch}", file=sys.stderr)
     print("Run:", file=sys.stderr)
     print(f"  wt {branch}", file=sys.stderr)
