@@ -866,8 +866,15 @@ async function init() {
     }
 
     try {
-        // Load products
-        await loadProducts();
+        // If search input has a pre-filled value (e.g. browser autofill on refresh),
+        // perform that search instead of loading all products
+        var initialQuery = searchInput.value.trim();
+        if (initialQuery) {
+            var results = await searchProducts(initialQuery);
+            renderProducts(results);
+        } else {
+            await loadProducts();
+        }
     } catch (err) {
         console.error("Failed to load products:", err);
     }
