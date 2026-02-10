@@ -51,6 +51,7 @@ Provide your assessment with VERDICT, RISK_LEVEL, FINDINGS, and SUMMARY.
         allowed_tools=["Read", "Glob", "Grep"],
         cwd=repo_path,
         max_turns=10,
+        permission_mode="bypassPermissions",
     )
 
     audit_text: str = ""
