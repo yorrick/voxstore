@@ -10,8 +10,8 @@ from .models import VoiceSearchExtraction
 logger = logging.getLogger(__name__)
 
 EXTRACTION_MODELS = [
-    "openrouter/google/gemini-2.5-flash-preview-05-20",
-    "openrouter/google/gemini-2.0-flash-001",
+    "openrouter/google/gemini-2.5-flash",
+    "openrouter/anthropic/claude-haiku-4.5",
 ]
 
 SYSTEM_PROMPT = """\
