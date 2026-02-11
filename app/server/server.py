@@ -1,6 +1,8 @@
 import logging
 import os
 import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import sentry_sdk
@@ -51,10 +53,38 @@ elif sentry_dsn:
 else:
     logger.info("[SENTRY] No DSN configured")
 
+app_start_time = datetime.now()
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
+    """Initialize database and embeddings before accepting requests."""
+    global app_start_time
+    app_start_time = datetime.now()
+
+    # Initialize database on startup
+    init_db()
+    logger.info("[STARTUP] Database initialized with seed data")
+
+    # Initialize semantic search embeddings
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM products")
+        all_products = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        init_embeddings(all_products)
+    except Exception as e:
+        logger.warning("[STARTUP] Failed to initialize embeddings: %s", e)
+
+    yield
+
+
 app = FastAPI(
     title="VoxStore API",
     description="Voice-powered product catalog backend",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS
@@ -74,23 +104,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app_start_time = datetime.now()
-
-# Initialize database on startup
-init_db()
-logger.info("[STARTUP] Database initialized with seed data")
-
-# Initialize semantic search embeddings
-try:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products")
-    all_products = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    init_embeddings(all_products)
-except Exception as e:
-    logger.warning("[STARTUP] Failed to initialize embeddings: %s", e)
 
 
 # --- Product endpoints ---
