@@ -276,8 +276,12 @@ async def health_check():
 
 @app.get("/sentry-debug")
 async def trigger_error():
-    """Trigger a test error to verify Sentry is working."""
-    _ = 1 / 0
+    """Trigger a test event to verify Sentry is working."""
+    try:
+        raise ZeroDivisionError("This is a test exception from /sentry-debug")
+    except ZeroDivisionError as e:
+        event_id = sentry_sdk.capture_exception(e)
+        return {"message": "Test exception sent to Sentry", "event_id": str(event_id)}
 
 
 # --- Serve static frontend ---
