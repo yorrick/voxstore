@@ -118,9 +118,8 @@ async def get_websocket_token() -> dict[str, str]:
             f"{ELEVENLABS_WS_BASE}"
             f"?token={token}"
             f"&model_id=scribe_v2_realtime"
-            f"&commit_strategy=vad"
+            f"&commit_strategy=manual"
             f"&audio_format=pcm_16000"
-            f"&vad_silence_threshold_secs=1.5"
         )
         return {"token": token, "ws_url": ws_url}
 

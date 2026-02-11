@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from core.db import get_connection, init_db
 from core.embeddings import init_embeddings
+from core.llm_extraction import LLMExtractionError, extract_voice_search
 from core.models import (
     AddToCartRequest,
     CartItem,
@@ -19,6 +20,8 @@ from core.models import (
     Product,
     SearchResponse,
     TranscribeResponse,
+    VoiceExtractRequest,
+    VoiceSearchExtraction,
     WebSocketTokenResponse,
 )
 from core.search import search_products
@@ -97,6 +100,7 @@ async def list_products(
     min_price: float | None = None,
     max_price: float | None = None,
     sort: str | None = None,
+    min_rating: float | None = None,
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -113,6 +117,9 @@ async def list_products(
     if max_price is not None:
         query += " AND price <= ?"
         params.append(max_price)
+    if min_rating is not None:
+        query += " AND rating >= ?"
+        params.append(min_rating)
 
     if sort == "price_asc":
         query += " ORDER BY price ASC"
@@ -189,6 +196,22 @@ async def transcribe_token_endpoint():
     except TranscriptionError as e:
         logger.warning("[TRANSCRIBE TOKEN] %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# --- Voice extraction endpoint ---
+
+
+@app.post("/api/voice/extract", response_model=VoiceSearchExtraction)
+async def extract_voice_endpoint(request: VoiceExtractRequest):
+    """Extract structured search parameters from a voice transcript using LLM."""
+    if not request.transcript.strip():
+        raise HTTPException(400, "Transcript is required")
+    try:
+        result = await extract_voice_search(request.transcript)
+        return result
+    except LLMExtractionError as e:
+        logger.warning("[VOICE_EXTRACT] %s", e)
+        return VoiceSearchExtraction(query=request.transcript)
 
 
 # --- Cart endpoints ---

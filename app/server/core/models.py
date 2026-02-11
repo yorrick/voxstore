@@ -44,3 +44,14 @@ class TranscribeResponse(BaseModel):
 class WebSocketTokenResponse(BaseModel):
     token: str
     ws_url: str
+
+
+class VoiceExtractRequest(BaseModel):
+    transcript: str
+
+
+class VoiceSearchExtraction(BaseModel):
+    query: str = ""
+    min_rating: float | None = None
+    sort: str | None = None  # "price_asc", "price_desc", "rating"
+    category: str | None = None

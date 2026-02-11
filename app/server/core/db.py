@@ -29,7 +29,7 @@ SEED_PRODUCTS = [
         "Electronics",
         "https://images.unsplash.com/photo-1589273705736-1bd0a0bcf116?w=400&h=400&fit=crop",
         True,
-        4.3,
+        3.8,
     ),
     (
         "USB-C Hub Adapter",
@@ -38,7 +38,7 @@ SEED_PRODUCTS = [
         "Electronics",
         "https://images.unsplash.com/photo-1616578273518-450dd375759b?w=400&h=400&fit=crop",
         True,
-        4.1,
+        2.9,
     ),
     (
         "Smart Watch Fitness Tracker",
@@ -56,7 +56,7 @@ SEED_PRODUCTS = [
         "Electronics",
         "https://images.unsplash.com/photo-1564540574859-0dfb63985953?w=400&h=400&fit=crop",
         False,
-        4.2,
+        3.2,
     ),
     (
         "Cotton Crew Neck T-Shirt",
@@ -65,7 +65,7 @@ SEED_PRODUCTS = [
         "Clothing",
         "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=400&h=400&fit=crop",
         True,
-        4.4,
+        4.1,
     ),
     (
         "Slim Fit Jeans",
@@ -74,7 +74,7 @@ SEED_PRODUCTS = [
         "Clothing",
         "https://images.unsplash.com/photo-1605518216938-7c31b7b14ad0?w=400&h=400&fit=crop",
         True,
-        4.3,
+        2.4,
     ),
     (
         "Lightweight Running Jacket",
@@ -92,7 +92,7 @@ SEED_PRODUCTS = [
         "Clothing",
         "https://images.unsplash.com/photo-1544967919-44c1ef2f9e7a?w=400&h=400&fit=crop",
         True,
-        4.6,
+        1.8,
     ),
     (
         "Canvas Sneakers",
@@ -101,7 +101,7 @@ SEED_PRODUCTS = [
         "Clothing",
         "https://images.unsplash.com/photo-1526113141918-63428b17f8c2?w=400&h=400&fit=crop",
         True,
-        4.2,
+        3.5,
     ),
     (
         "Ceramic Pour-Over Coffee Set",
@@ -119,7 +119,7 @@ SEED_PRODUCTS = [
         "Home",
         "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=400&h=400&fit=crop",
         True,
-        4.4,
+        3.9,
     ),
     (
         "LED Desk Lamp",
@@ -128,7 +128,7 @@ SEED_PRODUCTS = [
         "Home",
         "https://images.unsplash.com/photo-1562034475-0292da13283a?w=400&h=400&fit=crop",
         True,
-        4.5,
+        4.2,
     ),
     (
         "Scented Soy Candle Set",
@@ -146,7 +146,7 @@ SEED_PRODUCTS = [
         "Home",
         "https://images.unsplash.com/photo-1615224571885-7802e8b86d1b?w=400&h=400&fit=crop",
         True,
-        4.3,
+        2.1,
     ),
     (
         "Cast Iron Skillet 12-inch",
@@ -191,7 +191,7 @@ SEED_PRODUCTS = [
         "Books",
         "https://images.unsplash.com/photo-1698954634383-eba274a1b1c7?w=400&h=400&fit=crop",
         True,
-        4.5,
+        3.1,
     ),
     (
         "Yoga Mat Premium",
@@ -209,7 +209,7 @@ SEED_PRODUCTS = [
         "Sports",
         "https://images.unsplash.com/photo-1595909315417-2edd382a56dc?w=400&h=400&fit=crop",
         True,
-        4.4,
+        3.6,
     ),
     (
         "Stainless Steel Water Bottle",
@@ -227,7 +227,7 @@ SEED_PRODUCTS = [
         "Sports",
         "https://images.unsplash.com/photo-1514994667787-b48ca37155f0?w=400&h=400&fit=crop",
         True,
-        4.3,
+        1.5,
     ),
     (
         "Foam Roller Recovery",
@@ -236,7 +236,7 @@ SEED_PRODUCTS = [
         "Sports",
         "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=400&fit=crop",
         True,
-        4.5,
+        3.3,
     ),
 ]
 
