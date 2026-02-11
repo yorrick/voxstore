@@ -561,15 +561,21 @@ SEED_PRODUCTS = [
 ]
 
 
+_db_initialized = False
+
+
 def get_connection() -> sqlite3.Connection:
+    global _db_initialized
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    if not _db_initialized:
+        _ensure_tables(conn)
     return conn
 
 
-def init_db():
-    conn = get_connection()
+def _ensure_tables(conn: sqlite3.Connection) -> None:
+    """Create tables if they don't exist."""
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -594,6 +600,16 @@ def init_db():
         )
     """)
 
+    conn.commit()
+
+
+def init_db():
+    global _db_initialized
+    conn = get_connection()
+    _ensure_tables(conn)
+
+    cursor = conn.cursor()
+
     # Seed products if table is empty
     cursor.execute("SELECT COUNT(*) FROM products")
     if cursor.fetchone()[0] == 0:
@@ -605,3 +621,4 @@ def init_db():
 
     conn.commit()
     conn.close()
+    _db_initialized = True
