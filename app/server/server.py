@@ -274,10 +274,12 @@ async def health_check():
     return HealthCheckResponse(status="ok", products_count=count, uptime_seconds=uptime)
 
 
-@app.get("/sentry-debug")
-async def trigger_error():
-    """Trigger a test error to verify Sentry is working."""
-    _ = 1 / 0
+if not os.environ.get("RENDER"):
+
+    @app.get("/sentry-debug")
+    async def trigger_error():
+        """Trigger a test error to verify Sentry is working."""
+        _ = 1 / 0
 
 
 # --- Serve static frontend ---
