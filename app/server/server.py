@@ -39,15 +39,17 @@ logger = logging.getLogger(__name__)
 
 # Initialize Sentry
 sentry_dsn = os.environ.get("SENTRY_DSN")
-if sentry_dsn:
+if sentry_dsn and os.environ.get("RENDER"):
     sentry_sdk.init(
         dsn=sentry_dsn,
         traces_sample_rate=1.0,
         send_default_pii=True,
     )
     logger.info("[SENTRY] Initialized with DSN")
+elif sentry_dsn:
+    logger.info("[SENTRY] DSN present but disabled outside Render")
 else:
-    logger.info("[SENTRY] No DSN configured, error tracking disabled")
+    logger.info("[SENTRY] No DSN configured")
 
 app = FastAPI(
     title="VoxStore API",
@@ -280,7 +282,8 @@ async def remove_from_cart(item_id: int):
 @app.get("/api/config")
 async def get_config():
     """Return public client configuration (e.g. Sentry DSN)."""
-    return {"sentry_dsn": os.environ.get("SENTRY_DSN", "")}
+    dsn = os.environ.get("SENTRY_DSN", "") if os.environ.get("RENDER") else ""
+    return {"sentry_dsn": dsn}
 
 
 # --- Health ---
