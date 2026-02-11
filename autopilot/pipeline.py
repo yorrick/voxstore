@@ -191,8 +191,9 @@ async def _wait_for_ci(
             await asyncio.sleep(15)
             continue
 
-        # gh pr checks --json returns state as SUCCESS/FAILURE/PENDING
-        all_complete = all(c.get("state") != "PENDING" for c in checks)
+        # gh pr checks --json: SUCCESS/FAILURE/PENDING/IN_PROGRESS/etc.
+        terminal_states = {"SUCCESS", "FAILURE", "CANCELLED", "SKIPPED", "STARTUP_FAILURE"}
+        all_complete = all(c.get("state") in terminal_states for c in checks)
         if not all_complete:
             logger.info("CI still running, waiting...")
             await asyncio.sleep(15)

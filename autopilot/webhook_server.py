@@ -58,9 +58,13 @@ logger = logging.getLogger("autopilot.webhook")
 
 app = FastAPI(title="VoxStore Autopilot", description="Self-healing webhook server")
 
+# Track active pipeline runs by issue title to deduplicate webhooks
+_active_pipelines: set[str] = set()
 
-def _on_pipeline_done(task: asyncio.Task) -> None:  # type: ignore[type-arg]
-    """Log unhandled exceptions from background pipeline tasks."""
+
+def _on_pipeline_done(task: asyncio.Task, issue_key: str) -> None:  # type: ignore[type-arg]
+    """Log unhandled exceptions from background pipeline tasks and clean up tracking."""
+    _active_pipelines.discard(issue_key)
     if task.cancelled():
         return
     exc = task.exception()
@@ -107,9 +111,18 @@ async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
                 logger.info("  Stacktrace: %s", line)
 
         issue = _sentry_error_to_issue(error)
+
+        # Deduplicate: skip if a pipeline is already running for this issue
+        issue_key = error.title
+        if issue_key in _active_pipelines:
+            logger.info("Pipeline already running for '%s', skipping duplicate", issue_key)
+            return {"status": "skipped", "reason": "Pipeline already running for this issue"}
+
+        _active_pipelines.add(issue_key)
+
         # Run pipeline in background so we return 200 immediately
         task = asyncio.create_task(run_pipeline(issue, REPO_PATH))
-        task.add_done_callback(_on_pipeline_done)
+        task.add_done_callback(lambda t: _on_pipeline_done(t, issue_key))
 
         return {
             "status": "accepted",
