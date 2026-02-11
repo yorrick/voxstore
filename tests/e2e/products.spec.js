@@ -5,7 +5,7 @@ test.describe("Product Browsing", () => {
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
         const cards = await page.locator('[data-testid="product-card"]').count();
-        expect(cards).toBe(26);
+        expect(cards).toBe(61);
         await page.screenshot({
             path: "test-results/screenshots/product-grid-loaded.png",
             fullPage: true,
@@ -20,7 +20,7 @@ test.describe("Product Browsing", () => {
         const cards = page.locator('[data-testid="product-card"]');
         const count = await cards.count();
         expect(count).toBeGreaterThan(0);
-        expect(count).toBeLessThan(26);
+        expect(count).toBeLessThan(61);
         // Verify all visible products are Electronics
         for (let i = 0; i < count; i++) {
             const category = await cards.nth(i).locator(".product-category").textContent();

@@ -249,7 +249,7 @@ test.describe("Voice Search", () => {
         await page.waitForSelector('[data-testid="product-card"]');
 
         const initialCount = await page.locator('[data-testid="product-card"]').count();
-        expect(initialCount).toBe(26);
+        expect(initialCount).toBe(61);
 
         // Click voice button to start recording
         await page.click('[data-testid="voice-button"]');

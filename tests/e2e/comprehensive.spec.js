@@ -32,7 +32,7 @@ test.describe("Comprehensive Feature Tests", () => {
         });
 
         const count = await page.locator('[data-testid="product-card"]').count();
-        expect(count).toBe(26);
+        expect(count).toBe(61);
 
         // All API calls should succeed
         for (const resp of apiResponses) {
@@ -91,7 +91,7 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const prices = await page.locator(".product-price").allTextContents();
             const nums = prices.map((p) => parseFloat(p.replace("$", "")));
-            expect(nums.length).toBe(26);
+            expect(nums.length).toBe(61);
             expect(nums[0]).toBeLessThanOrEqual(nums[1]);
         }).toPass({ timeout: 3000 });
 
@@ -111,7 +111,7 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const prices = await page.locator(".product-price").allTextContents();
             const nums = prices.map((p) => parseFloat(p.replace("$", "")));
-            expect(nums.length).toBe(26);
+            expect(nums.length).toBe(61);
             expect(nums[0]).toBeGreaterThanOrEqual(nums[1]);
         }).toPass({ timeout: 3000 });
 
@@ -131,7 +131,7 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const ratings = await page.locator(".product-rating").allTextContents();
             const nums = ratings.map((r) => parseFloat(r.split(" ").pop()));
-            expect(nums.length).toBe(26);
+            expect(nums.length).toBe(61);
             expect(nums[0]).toBeGreaterThanOrEqual(nums[1]);
         }).toPass({ timeout: 3000 });
 
@@ -182,7 +182,7 @@ test.describe("Comprehensive Feature Tests", () => {
             await expect(async () => {
                 const count = await page.locator('[data-testid="product-card"]').count();
                 expect(count).toBeGreaterThan(0);
-                expect(count).toBeLessThan(26);
+                expect(count).toBeLessThan(61);
             }).toPass({ timeout: 3000 });
 
             const cardCategories = await page.locator(".product-category").allTextContents();
@@ -200,14 +200,14 @@ test.describe("Comprehensive Feature Tests", () => {
 
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
-            expect(count).toBeLessThan(26);
+            expect(count).toBeLessThan(61);
         }).toPass({ timeout: 3000 });
 
         await page.selectOption('[data-testid="category-filter"]', "");
 
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
-            expect(count).toBe(26);
+            expect(count).toBe(61);
         }).toPass({ timeout: 3000 });
     });
 
@@ -222,7 +222,7 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const cats = await page.locator(".product-category").allTextContents();
             expect(cats.length).toBeGreaterThan(0);
-            expect(cats.length).toBeLessThan(26);
+            expect(cats.length).toBeLessThan(61);
         }).toPass({ timeout: 3000 });
 
         await page.selectOption('[data-testid="sort-filter"]', "price_asc");
@@ -257,7 +257,7 @@ test.describe("Comprehensive Feature Tests", () => {
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
             expect(count).toBeGreaterThan(0);
-            expect(count).toBeLessThan(26);
+            expect(count).toBeLessThan(61);
         }).toPass({ timeout: 10000 });
 
         const names = await page.locator(".product-name").allTextContents();
@@ -289,14 +289,14 @@ test.describe("Comprehensive Feature Tests", () => {
 
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
-            expect(count).toBeLessThan(26);
+            expect(count).toBeLessThan(61);
         }).toPass({ timeout: 10000 });
 
         await page.fill('[data-testid="search-input"]', "");
 
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
-            expect(count).toBe(26);
+            expect(count).toBe(61);
         }).toPass({ timeout: 10000 });
     });
 
@@ -472,7 +472,7 @@ test.describe("Comprehensive Feature Tests", () => {
         expect(resp.status()).toBe(200);
         const products = await resp.json();
         expect(Array.isArray(products)).toBe(true);
-        expect(products.length).toBe(26);
+        expect(products.length).toBe(61);
 
         const p = products[0];
         expect(p).toHaveProperty("id");
@@ -538,7 +538,7 @@ test.describe("Comprehensive Feature Tests", () => {
         // Wait for final state to settle
         await expect(async () => {
             const count = await page.locator('[data-testid="product-card"]').count();
-            expect(count).toBe(26);
+            expect(count).toBe(61);
         }).toPass({ timeout: 3000 });
     });
 
@@ -556,7 +556,7 @@ test.describe("Comprehensive Feature Tests", () => {
         });
 
         const count = await page.locator('[data-testid="product-card"]').count();
-        expect(count).toBe(26);
+        expect(count).toBe(61);
         expect(jsErrors).toEqual([]);
     });
 });

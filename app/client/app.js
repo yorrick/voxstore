@@ -259,7 +259,7 @@ searchInput.addEventListener("input", function () {
         try {
             if (query) {
                 var results = await searchProducts(query);
-                renderProducts(results);
+                renderProducts(filterAndSort(results));
             } else {
                 await loadProducts();
             }
@@ -848,7 +848,7 @@ async function applyVoiceSearchExtraction(transcript) {
         // Trigger search with all applied filters
         if (extraction.query) {
             var results = await searchProducts(extraction.query);
-            renderProducts(results);
+            renderProducts(filterAndSort(results));
         } else {
             await loadProducts();
         }
@@ -927,9 +927,55 @@ function closeCart() {
 
 // --- Filters ---
 
-categoryFilter.addEventListener("change", loadProducts);
-sortFilter.addEventListener("change", loadProducts);
-ratingFilter.addEventListener("change", loadProducts);
+categoryFilter.addEventListener("change", applyFilters);
+sortFilter.addEventListener("change", applyFilters);
+ratingFilter.addEventListener("change", applyFilters);
+
+async function applyFilters() {
+    var query = searchInput.value.trim();
+    if (query) {
+        try {
+            var results = await searchProducts(query);
+            renderProducts(filterAndSort(results));
+        } catch (err) {
+            console.error("Search failed:", err);
+        }
+    } else {
+        await loadProducts();
+    }
+}
+
+function filterAndSort(items) {
+    var filtered = items.slice();
+    var cat = categoryFilter.value;
+    var minRating = ratingFilter.value ? parseFloat(ratingFilter.value) : null;
+    var sort = sortFilter.value;
+
+    if (cat) {
+        filtered = filtered.filter(function (p) {
+            return p.category === cat;
+        });
+    }
+    if (minRating) {
+        filtered = filtered.filter(function (p) {
+            return p.rating >= minRating;
+        });
+    }
+    if (sort === "price_asc") {
+        filtered.sort(function (a, b) {
+            return a.price - b.price;
+        });
+    } else if (sort === "price_desc") {
+        filtered.sort(function (a, b) {
+            return b.price - a.price;
+        });
+    } else if (sort === "rating") {
+        filtered.sort(function (a, b) {
+            return b.rating - a.rating;
+        });
+    }
+    return filtered;
+}
 
 // --- Init ---
 

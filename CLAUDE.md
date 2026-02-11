@@ -81,3 +81,12 @@ For EVERY change to this codebase, the following checks MUST pass before committ
 - Line length limit: 100 characters (ruff + prettier)
 - Python target: 3.10+ (uses `str | None` syntax, not `Optional[str]`)
 - All HTML elements used in E2E tests must have `data-testid` attributes
+
+## Product Seed Data
+
+When adding or modifying products in `app/server/core/db.py`:
+- **Image URLs MUST visually match the product.** Each product's `image_url` should show the actual product (e.g., a water bottle image for a water bottle, headphones image for headphones). Do NOT use generic/random Unsplash photos.
+- Use Unsplash URLs in format: `https://images.unsplash.com/photo-XXXXX?w=400&h=400&fit=crop`
+- Ensure price and rating variety within product types to support meaningful search/filter testing
+- After changing seed data: delete `app/server/db/voxstore.db` and `app/server/db/embeddings_*.npz` so they regenerate
+- Update any hardcoded product count assertions in E2E tests (search for the old count in `tests/e2e/`)
