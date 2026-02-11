@@ -41,6 +41,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from autopilot.models.sentry_issue import SentryIssue
 from autopilot.pipeline import run_pipeline
 
+# Patterns that indicate a Sentry test/example exception (not a real production error)
+_TEST_CULPRITS = {"raven.scripts.runner in main"}
+_TEST_TITLE_SUBSTRINGS = [
+    "This is an example",
+    "example Python exception",
+    "example FastAPI exception",
+]
+
 load_dotenv()
 
 SENTRY_AUTH_TOKEN = os.getenv("SENTRY_AUTH_TOKEN", "")
@@ -69,6 +77,20 @@ async def fetch_unresolved_issues() -> list[SentryIssue]:
         data = resp.json()
 
     return [SentryIssue.from_api_response(item) for item in data]
+
+
+def is_test_issue(issue: SentryIssue) -> bool:
+    """Return True if the issue looks like a Sentry test/example exception.
+
+    Sentry's built-in "Send Test Event" and the legacy ``raven test`` command
+    generate synthetic errors that should not trigger the self-healing pipeline.
+    """
+    if issue.culprit in _TEST_CULPRITS:
+        return True
+    for substring in _TEST_TITLE_SUBSTRINGS:
+        if substring.lower() in issue.title.lower():
+            return True
+    return False
 
 
 def load_processed_issues() -> dict[str, str]:
@@ -105,10 +127,23 @@ async def poll_once() -> None:
         print(f"  No new issues (total unresolved: {len(issues)})")
         return
 
-    print(f"  Found {len(new_issues)} new issue(s)")
+    # Filter out Sentry test/example exceptions
+    real_issues = []
+    for issue in new_issues:
+        if is_test_issue(issue):
+            print(f"  Skipping test issue: {issue.title} (ID: {issue.id})")
+            mark_issue_processed(issue.id)
+        else:
+            real_issues.append(issue)
+
+    if not real_issues:
+        print(f"  No real issues to process (filtered {len(new_issues)} test issue(s))")
+        return
+
+    print(f"  Found {len(real_issues)} new issue(s)")
 
     # Process one at a time
-    for issue in new_issues:
+    for issue in real_issues:
         print(f"  Processing: {issue.title} (ID: {issue.id})")
         try:
             result = await run_pipeline(issue, REPO_PATH)

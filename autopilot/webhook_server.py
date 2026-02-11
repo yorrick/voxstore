@@ -34,6 +34,7 @@ from autopilot.models.sentry_issue import SentryIssue
 from autopilot.modules.sentry_parser import parse_sentry_webhook
 from autopilot.modules.signature import require_sentry_signature
 from autopilot.pipeline import run_pipeline
+from autopilot.poller import is_test_issue
 
 load_dotenv()
 
@@ -91,6 +92,12 @@ async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
         logger.info("Level: %s", error.level)
 
         issue = _sentry_error_to_issue(error)
+
+        # Skip Sentry test/example exceptions
+        if is_test_issue(issue):
+            logger.info("Ignoring test issue: %s", error.title)
+            return {"status": "ignored", "reason": "Test/example exception"}
+
         # Run pipeline in background so we return 200 immediately
         task = asyncio.create_task(run_pipeline(issue, REPO_PATH))
         task.add_done_callback(_on_pipeline_done)
