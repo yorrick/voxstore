@@ -41,12 +41,20 @@ PORT = int(os.getenv("PORT", "8002"))
 REPO_PATH = os.getenv("REPO_PATH", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SENTRY_WEBHOOK_SECRET = os.getenv("SENTRY_WEBHOOK_SECRET", "")
 
+LOG_FORMAT = "[%(asctime)s] %(levelname)s %(message)s"
+LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATEFMT, level=logging.INFO)
+# Apply same format to uvicorn's access and error loggers
+for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
+    uv_logger = logging.getLogger(name)
+    uv_logger.handlers.clear()
+    uv_logger.propagate = False
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
+    uv_logger.addHandler(handler)
+
 logger = logging.getLogger("autopilot.webhook")
-logging.basicConfig(
-    format="[%(asctime)s] %(levelname)s %(message)s",
-    datefmt="%H:%M:%S",
-    level=logging.INFO,
-)
 
 app = FastAPI(title="VoxStore Autopilot", description="Self-healing webhook server")
 
@@ -77,7 +85,7 @@ def _sentry_error_to_issue(error) -> SentryIssue:
     )
 
 
-@app.post("/sentry-webhook")
+@app.post("/webhook/sentry")
 async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
     """Handle Sentry issue alert webhooks."""
     try:
@@ -87,8 +95,16 @@ async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
             return {"status": "ignored", "reason": "Could not parse Sentry payload"}
 
         logger.info("Received Sentry alert: %s", error.title)
-        logger.info("Culprit: %s", error.culprit)
-        logger.info("Level: %s", error.level)
+        logger.info("  Culprit: %s", error.culprit)
+        logger.info(
+            "  Level: %s | Platform: %s | Project: %s", error.level, error.platform, error.project
+        )
+        logger.info("  Event ID: %s", error.event_id)
+        logger.info("  URL: %s", error.url or "(none)")
+        logger.info("  Message: %s", error.message or "(none)")
+        if error.stacktrace and error.stacktrace != "No stacktrace available":
+            for line in error.stacktrace.splitlines():
+                logger.info("  Stacktrace: %s", line)
 
         issue = _sentry_error_to_issue(error)
         # Run pipeline in background so we return 200 immediately
@@ -106,7 +122,7 @@ async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
         return {"status": "error", "message": "Internal server error"}
 
 
-@app.post("/gh-webhook")
+@app.post("/webhook/github")
 async def github_webhook(request: Request):
     """Handle GitHub webhook events (for future use)."""
     try:
@@ -142,8 +158,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     logger.info("Starting VoxStore Autopilot on port %d", PORT)
-    logger.info("Sentry webhook: POST /sentry-webhook")
-    logger.info("GitHub webhook: POST /gh-webhook")
+    logger.info("Sentry webhook: POST /webhook/sentry")
+    logger.info("GitHub webhook: POST /webhook/github")
     logger.info("Health check:   GET /health")
     logger.info("Repo path:      %s", REPO_PATH)
 

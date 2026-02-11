@@ -7,7 +7,9 @@ import os
 
 from fastapi import HTTPException, Request
 
-SENTRY_WEBHOOK_SECRET = os.getenv("SENTRY_WEBHOOK_SECRET", "")
+
+def _get_secret() -> str:
+    return os.getenv("SENTRY_WEBHOOK_SECRET", "")
 
 
 def verify_hmac_sha256(body: bytes, secret: str, signature: str) -> bool:
@@ -27,13 +29,14 @@ async def require_sentry_signature(request: Request) -> dict:
     and compares against the Sentry-Hook-Signature header.
     Returns the parsed JSON payload if valid.
     """
-    if not SENTRY_WEBHOOK_SECRET:
+    secret = _get_secret()
+    if not secret:
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
 
     body = await request.body()
     signature = request.headers.get("sentry-hook-signature", "")
 
-    if not verify_hmac_sha256(body, SENTRY_WEBHOOK_SECRET, signature):
+    if not verify_hmac_sha256(body, secret, signature):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
 
     try:

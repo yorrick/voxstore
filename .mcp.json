@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "perplexity": {
+      "command": "/home/yorrick/.local/share/fnm/node-versions/v24.13.1/installation/bin/npx",
+      "args": ["-y", "@perplexity-ai/mcp-server"],
+      "env": {
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}",
+        "PATH": "/home/yorrick/.local/share/fnm/node-versions/v24.13.1/installation/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}

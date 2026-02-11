@@ -11,13 +11,17 @@ echo -e "${BLUE}Starting VoxStore Autopilot...${NC}"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( dirname "$SCRIPT_DIR" )"
+AUTOPILOT_DIR="$PROJECT_ROOT/autopilot"
+LOG_DIR="$AUTOPILOT_DIR/logs"
 
 # Check for .env
-if [ ! -f "$PROJECT_ROOT/autopilot/.env" ]; then
+if [ ! -f "$AUTOPILOT_DIR/.env" ]; then
     echo -e "${RED}No .env file found in autopilot/.${NC}"
     echo "Run: cp autopilot/.env.sample autopilot/.env"
     exit 1
 fi
+
+mkdir -p "$LOG_DIR"
 
 cleanup() {
     echo -e "\n${BLUE}Shutting down autopilot...${NC}"
@@ -37,16 +41,21 @@ if [ ! -z "$pid" ]; then
     sleep 1
 fi
 
-# Start autopilot webhook server
-cd "$PROJECT_ROOT"
-uv run autopilot/webhook_server.py &
+# Start autopilot webhook server (no hot reload — reload kills running agent processes)
+cd "$AUTOPILOT_DIR"
+.venv/bin/uvicorn autopilot.webhook_server:app \
+    --host 0.0.0.0 \
+    --port $AUTOPILOT_PORT \
+    --app-dir "$PROJECT_ROOT" \
+    2>&1 | tee "$LOG_DIR/autopilot.log" &
 
 sleep 2
 
 echo -e "${GREEN}Autopilot running on port $AUTOPILOT_PORT${NC}"
-echo -e "${BLUE}Sentry webhook: POST http://localhost:$AUTOPILOT_PORT/sentry-webhook${NC}"
-echo -e "${BLUE}GitHub webhook:  POST http://localhost:$AUTOPILOT_PORT/gh-webhook${NC}"
+echo -e "${BLUE}Sentry webhook: POST http://localhost:$AUTOPILOT_PORT/webhook/sentry${NC}"
+echo -e "${BLUE}GitHub webhook:  POST http://localhost:$AUTOPILOT_PORT/webhook/github${NC}"
 echo -e "${BLUE}Health check:    GET  http://localhost:$AUTOPILOT_PORT/health${NC}"
+echo -e "${BLUE}Logs:            $LOG_DIR/autopilot.log${NC}"
 echo ""
 echo "Press Ctrl+C to stop"
 

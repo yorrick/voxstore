@@ -40,7 +40,13 @@ async def run_pipeline(issue: SentryIssue, repo_root: str) -> dict:
     result: dict = {"run_id": run_id, "issue_title": issue.title, "steps": {}}
 
     logger.info(f"Starting pipeline for issue: {issue.title}")
-    logger.info(f"Sentry URL: {issue.permalink}")
+    logger.info(f"  Issue ID: {issue.id} | Short ID: {issue.short_id}")
+    logger.info(f"  Culprit: {issue.culprit}")
+    logger.info(f"  Level: {issue.level} | Status: {issue.status}")
+    logger.info(f"  Occurrences: {issue.count}")
+    logger.info(f"  First seen: {issue.first_seen} | Last seen: {issue.last_seen}")
+    logger.info(f"  Sentry URL: {issue.permalink or '(none)'}")
+    logger.info(f"  Metadata: {issue.metadata}")
 
     # Step 1: Create worktree
     logger.info(f"Creating worktree for issue {issue.id}...")
@@ -55,7 +61,7 @@ async def run_pipeline(issue: SentryIssue, repo_root: str) -> dict:
 
     # Step 2: Run code fix agent (creates PR)
     logger.info("Running code fix agent...")
-    fix_result = await run_code_fix_agent(issue, worktree_path)
+    fix_result = await run_code_fix_agent(issue, worktree_path, logger=logger)
     result["steps"]["fix_agent"] = fix_result
     logger.info(f"Fix agent result: success={fix_result['success']}")
 
@@ -101,14 +107,18 @@ async def run_pipeline(issue: SentryIssue, repo_root: str) -> dict:
 
     # Step 5: Run code review agent
     logger.info("Running code review agent...")
-    review_result = await run_code_review_agent(pr_number, repo_root)
+    review_result = await run_code_review_agent(
+        pr_number, repo_root, branch_name=branch_name, logger=logger
+    )
     result["steps"]["review"] = review_result
     logger.info(f"Review result: approved={review_result['approved']}")
 
     # Step 6: Run security agent
     logger.info("Running security agent...")
     pr_diff = get_pr_diff(pr_number) or ""
-    security_result = await run_security_agent(pr_diff, repo_root)
+    security_result = await run_security_agent(
+        pr_diff, repo_root, branch_name=branch_name, logger=logger
+    )
     result["steps"]["security"] = security_result
     logger.info(f"Security result: passed={security_result['passed']}")
 
@@ -181,18 +191,19 @@ async def _wait_for_ci(
             await asyncio.sleep(15)
             continue
 
-        all_complete = all(c.get("state") == "completed" for c in checks)
+        # gh pr checks --json returns state as SUCCESS/FAILURE/PENDING
+        all_complete = all(c.get("state") != "PENDING" for c in checks)
         if not all_complete:
             logger.info("CI still running, waiting...")
             await asyncio.sleep(15)
             continue
 
-        all_passed = all(c.get("conclusion") == "success" for c in checks)
+        all_passed = all(c.get("state") == "SUCCESS" for c in checks)
         if all_passed:
             logger.info("All CI checks passed")
             return True
         else:
-            failed = [c["name"] for c in checks if c.get("conclusion") != "success"]
+            failed = [c["name"] for c in checks if c.get("state") != "SUCCESS"]
             logger.warning(f"CI checks failed: {', '.join(failed)}")
             return False
 

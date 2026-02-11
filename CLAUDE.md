@@ -25,7 +25,9 @@ VoxStore is a demo application showcasing autonomous self-healing capabilities. 
 # Start the app
 ./scripts/start.sh
 
-# Start the autopilot webhook server
+# Start the autopilot webhook server (hot reload + logs teed to autopilot/logs/autopilot.log)
+# IMPORTANT: When working on the autopilot, always start the server via this script
+# so both the agent and the user can inspect logs.
 ./scripts/start_autopilot.sh
 
 # Server: format, lint, type check, test
@@ -70,6 +72,23 @@ For EVERY change to this codebase, the following checks MUST pass before committ
 - Check browser console logs in both **Chromium and Firefox** for errors, warnings, or unexpected output
 - Start the app (`./scripts/start.sh`), test API endpoints, verify no errors/warnings in logs
 - If UI changed, update visual snapshots: `npx playwright test --update-snapshots tests/e2e/visual.spec.js`
+
+## Render Deployment
+
+The app is deployed on Render. The deployment URL is configured via the `RENDER_APP_URL`
+environment variable in `autopilot/.env` (e.g. `https://voxstore-xxxx.onrender.com`).
+
+When asked to "hit the endpoint", "trigger an error", or "hit sentry-debug", use the Render
+deployment URL (NOT localhost). Read the URL from the `RENDER_APP_URL` var in `autopilot/.env`.
+
+**Important:** Before triggering a test error, the corresponding issue must be deleted in Sentry
+first. Otherwise Sentry won't fire a new alert (it deduplicates by issue). Remind the user to
+delete the issue in Sentry before hitting the endpoint.
+
+```bash
+# Trigger a test error on the Render deployment
+curl -s $RENDER_APP_URL/sentry-debug
+```
 
 ## Important Conventions
 

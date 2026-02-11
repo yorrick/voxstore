@@ -43,7 +43,7 @@ def _post_signed(client, url: str, payload: dict, secret: str = TEST_SECRET):
 def test_sentry_webhook_valid_signature(client):
     """Valid signature + valid payload -> 200 accepted, pipeline triggered."""
     with patch("autopilot.webhook_server.run_pipeline") as mock_pipeline:
-        res = _post_signed(client, "/sentry-webhook", VALID_SENTRY_PAYLOAD)
+        res = _post_signed(client, "/webhook/sentry", VALID_SENTRY_PAYLOAD)
 
     assert res.status_code == 200
     assert res.json()["status"] == "accepted"
@@ -54,7 +54,7 @@ def test_sentry_webhook_invalid_signature(client):
     """Invalid signature -> 403."""
     body = json.dumps(VALID_SENTRY_PAYLOAD).encode("utf-8")
     res = client.post(
-        "/sentry-webhook",
+        "/webhook/sentry",
         content=body,
         headers={
             "sentry-hook-signature": "bad-signature",
@@ -69,7 +69,7 @@ def test_sentry_webhook_missing_signature(client):
     """Missing signature header -> 403."""
     body = json.dumps(VALID_SENTRY_PAYLOAD).encode("utf-8")
     res = client.post(
-        "/sentry-webhook",
+        "/webhook/sentry",
         content=body,
         headers={"content-type": "application/json"},
     )
@@ -83,7 +83,7 @@ def test_sentry_webhook_wrong_secret(client):
     signature = _sign_bytes(body, secret="wrong-secret")
 
     res = client.post(
-        "/sentry-webhook",
+        "/webhook/sentry",
         content=body,
         headers={
             "sentry-hook-signature": signature,
@@ -97,7 +97,7 @@ def test_sentry_webhook_wrong_secret(client):
 def test_sentry_webhook_valid_signature_unparseable_payload(client):
     """Valid signature but payload can't be parsed -> 200 ignored."""
     payload = {"data": {"something_else": {}}}
-    res = _post_signed(client, "/sentry-webhook", payload)
+    res = _post_signed(client, "/webhook/sentry", payload)
 
     assert res.status_code == 200
     assert res.json()["status"] == "ignored"

@@ -8,16 +8,12 @@ Spins up a Claude Code agent that:
 5. Commits, pushes, and creates a PR
 """
 
+import logging
 import os
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ResultMessage,
-    TextBlock,
-    query,
-)
+from claude_agent_sdk import ClaudeAgentOptions, query
 
+from autopilot.agents.agent_logging import log_agent_message
 from autopilot.models.sentry_issue import SentryIssue
 
 FIX_SYSTEM_PROMPT = """\
@@ -38,10 +34,14 @@ Follow these phases in order. Do NOT skip any phase.
 
 ### Phase 1: Investigate the Error
 
-Use the Sentry MCP tools to get full details about the error:
+Use the Sentry MCP tools (provided via MCP server) to get full details about the error:
 - Fetch the issue details and latest events
 - Read the full stacktrace with source context
 - Understand error frequency and affected users
+
+IMPORTANT: You MUST use the Sentry MCP tools (e.g. mcp__sentry__get_issue_details, \
+mcp__sentry__search_issues) — NEVER make raw curl/HTTP calls to the Sentry API. \
+The MCP server is already authenticated and available to you.
 
 ### Phase 2: Explore Relevant Code
 
@@ -147,6 +147,8 @@ and create a PR."""
 async def run_code_fix_agent(
     issue: SentryIssue,
     worktree_path: str,
+    *,
+    logger: logging.Logger | None = None,
 ) -> dict:
     """Run the autonomous fix agent in a worktree.
 
@@ -160,34 +162,41 @@ async def run_code_fix_agent(
         - summary: str
         - pr_url: str | None
     """
+    log = logger or logging.getLogger("autopilot.fix_agent")
     prompt = _build_fix_prompt(issue)
 
     sentry_token = os.getenv("SENTRY_AUTH_TOKEN", "")
+    npx_path = os.getenv(
+        "NPX_PATH",
+        os.path.expanduser("~/.local/share/fnm/node-versions/v24.13.1/installation/bin/npx"),
+    )
+    node_bin_dir = os.path.dirname(npx_path)
     mcp_servers: dict = {
         "sentry": {
-            "command": "npx",
+            "command": npx_path,
             "args": ["-y", "@sentry/mcp-server"],
-            "env": {"SENTRY_AUTH_TOKEN": sentry_token},
+            "env": {
+                "SENTRY_AUTH_TOKEN": sentry_token,
+                "PATH": f"{node_bin_dir}:/usr/local/bin:/usr/bin:/bin",
+            },
         },
     }
 
+    branch_name = f"autopilot/fix-{issue.id}"
     options = ClaudeAgentOptions(
         system_prompt=FIX_SYSTEM_PROMPT,
         cwd=worktree_path,
-        max_turns=30,
+        max_turns=50,
         permission_mode="bypassPermissions",
         mcp_servers=mcp_servers,
+        env={"CLAUDE_CODE_TASK_LIST_ID": branch_name},
     )
 
     summary = ""
     async for message in query(prompt=prompt, options=options):
-        if isinstance(message, ResultMessage):
-            result = message.result if hasattr(message, "result") else str(message)
-            summary = result if isinstance(result, str) else str(result)
-        elif isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    summary = block.text
+        text = log_agent_message(message, log)
+        if text:
+            summary = text
 
     # Try to extract PR URL from the summary
     pr_url = _extract_pr_url(summary or "")

@@ -4,13 +4,11 @@ Based on the /code-review skill from Anthropic's claude-code plugins.
 Runs autonomously to review a PR for bugs, CLAUDE.md compliance, and code quality.
 """
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ResultMessage,
-    TextBlock,
-    query,
-)
+import logging
+
+from claude_agent_sdk import ClaudeAgentOptions, query
+
+from autopilot.agents.agent_logging import log_agent_message
 
 CODE_REVIEW_PROMPT = """\
 Provide a code review for pull request #{pr_number} in this repository.
@@ -77,6 +75,9 @@ Respond with a structured result:
 async def run_code_review_agent(
     pr_number: str,
     repo_path: str,
+    *,
+    branch_name: str | None = None,
+    logger: logging.Logger | None = None,
 ) -> dict:
     """Run the code review agent on a PR.
 
@@ -84,24 +85,26 @@ async def run_code_review_agent(
         - approved: bool
         - summary: str
     """
+    log = logger or logging.getLogger("autopilot.review_agent")
     prompt = CODE_REVIEW_PROMPT.format(pr_number=pr_number)
+
+    env: dict[str, str] = {}
+    if branch_name:
+        env["CLAUDE_CODE_TASK_LIST_ID"] = branch_name
 
     options = ClaudeAgentOptions(
         allowed_tools=["Read", "Glob", "Grep", "Bash"],
         cwd=repo_path,
         max_turns=20,
         permission_mode="bypassPermissions",
+        env=env,
     )
 
     review_text: str = ""
     async for message in query(prompt=prompt, options=options):
-        if isinstance(message, ResultMessage):
-            result = message.result if hasattr(message, "result") else str(message)
-            review_text = result if isinstance(result, str) else str(result)
-        elif isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    review_text = block.text
+        text = log_agent_message(message, log)
+        if text:
+            review_text = text
 
     approved = "APPROVE" in review_text.upper() and "REQUEST_CHANGES" not in review_text.upper()
 

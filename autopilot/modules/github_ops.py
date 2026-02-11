@@ -83,7 +83,7 @@ def get_pr_checks(pr_number: str) -> list[dict]:
             "--repo",
             repo,
             "--json",
-            "name,state,conclusion",
+            "name,state",
         ],
         capture_output=True,
         text=True,
