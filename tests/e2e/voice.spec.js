@@ -423,6 +423,19 @@ test.describe("Alt Push-to-Talk", () => {
             });
         });
 
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "laptop",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
+                }),
+            });
+        });
+
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
@@ -447,6 +460,19 @@ test.describe("Alt Push-to-Talk", () => {
                 body: JSON.stringify({
                     token: "fake-token",
                     ws_url: "wss://fake.elevenlabs.io/v1/stt",
+                }),
+            });
+        });
+
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "tablet",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
                 }),
             });
         });

@@ -772,6 +772,10 @@ function stopListening() {
     isRecording = false;
     recordingTriggeredBy = null;
     accumulatedTranscript = "";
+    if (commitTimeoutId) {
+        clearTimeout(commitTimeoutId);
+        commitTimeoutId = null;
+    }
     voiceBtn.classList.remove("listening");
     voiceIndicator.style.display = "none";
     setPartialTranscript("");
