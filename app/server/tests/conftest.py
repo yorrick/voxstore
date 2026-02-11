@@ -15,12 +15,14 @@ import core.embeddings as embeddings_module  # noqa: E402
 
 db_module.DB_PATH = _tmp_db
 
-# Prevent embeddings from loading during test imports
-with patch.object(embeddings_module, "init_embeddings", return_value=None):
-    import pytest  # noqa: E402
-    from fastapi.testclient import TestClient  # noqa: E402
+# Prevent embeddings from loading during test imports and lifespan
+_embeddings_patch = patch.object(embeddings_module, "init_embeddings", return_value=None)
+_embeddings_patch.start()
 
-    from server import app  # noqa: E402
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from server import app  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -36,4 +38,5 @@ def reset_db():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
