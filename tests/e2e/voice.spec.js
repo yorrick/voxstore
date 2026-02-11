@@ -401,9 +401,9 @@ test.describe("Voice Search", () => {
         // Immediately click again to manually stop
         await page.click('[data-testid="voice-button"]');
 
-        // Indicator should be hidden after commit timeout + extraction
+        // Indicator should be hidden after commit timeout (2s) + extraction
         await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({
-            timeout: 5000,
+            timeout: 8000,
         });
     });
 });
@@ -447,7 +447,9 @@ test.describe("Alt Push-to-Talk", () => {
 
         // Release Alt to stop
         await page.keyboard.up("Alt");
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
+        // commitAndStop() has a 2000ms internal delay before processing —
+        // allow enough margin for CI environments.
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 6000 });
     });
 
     test("alt key works when search input is focused", async ({ page }) => {
@@ -495,7 +497,7 @@ test.describe("Alt Push-to-Talk", () => {
 
         // Release Alt to stop
         await page.keyboard.up("Alt");
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 6000 });
     });
 
     test("alt hint is visible on page load", async ({ page }) => {

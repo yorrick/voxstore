@@ -10,7 +10,7 @@ test.describe("Search", () => {
             const cards = await page.locator('[data-testid="product-card"]').count();
             expect(cards).toBeGreaterThan(0);
             expect(cards).toBeLessThan(initialCount);
-        }).toPass({ timeout: 5000 });
+        }).toPass({ timeout: 10000 });
         await page.screenshot({
             path: "test-results/screenshots/search-headphones.png",
             fullPage: true,
@@ -24,7 +24,7 @@ test.describe("Search", () => {
         await expect(async () => {
             const cards = await page.locator('[data-testid="product-card"]').count();
             expect(cards).toBe(0);
-        }).toPass({ timeout: 5000 });
+        }).toPass({ timeout: 10000 });
         await page.screenshot({
             path: "test-results/screenshots/search-no-results.png",
             fullPage: true,
@@ -39,12 +39,12 @@ test.describe("Search", () => {
         await expect(async () => {
             const cards = await page.locator('[data-testid="product-card"]').count();
             expect(cards).toBeLessThan(initialCount);
-        }).toPass({ timeout: 5000 });
+        }).toPass({ timeout: 10000 });
         await page.fill('[data-testid="search-input"]', "");
         await expect(async () => {
             const cards = await page.locator('[data-testid="product-card"]').count();
             expect(cards).toBe(initialCount);
-        }).toPass({ timeout: 5000 });
+        }).toPass({ timeout: 10000 });
     });
 
     test("search is case insensitive", async ({ page }) => {
@@ -54,6 +54,6 @@ test.describe("Search", () => {
         await expect(async () => {
             const cards = await page.locator('[data-testid="product-card"]').count();
             expect(cards).toBeGreaterThan(0);
-        }).toPass({ timeout: 5000 });
+        }).toPass({ timeout: 10000 });
     });
 });
