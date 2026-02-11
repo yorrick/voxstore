@@ -180,7 +180,7 @@ async def test_get_websocket_token_success():
     assert result["token"] == "test-token-123"
     assert "wss://api.elevenlabs.io" in result["ws_url"]
     assert "token=test-token-123" in result["ws_url"]
-    assert "commit_strategy=vad" in result["ws_url"]
+    assert "commit_strategy=manual" in result["ws_url"]
 
 
 @pytest.mark.asyncio

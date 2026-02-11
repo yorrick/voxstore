@@ -231,21 +231,41 @@ test.describe("Voice Search", () => {
             });
         });
 
+        // Mock the voice extraction endpoint
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "headphones",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
+                }),
+            });
+        });
+
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
         const initialCount = await page.locator('[data-testid="product-card"]').count();
         expect(initialCount).toBe(26);
 
-        // Click voice button
+        // Click voice button to start recording
         await page.click('[data-testid="voice-button"]');
 
-        // Search input should be populated with the transcript
+        // Wait for transcript to be accumulated
+        await page.waitForTimeout(500);
+
+        // Click voice button again to stop recording and trigger extraction
+        await page.click('[data-testid="voice-button"]');
+
+        // Search input should be populated with the extracted query
         await expect(page.locator('[data-testid="search-input"]')).toHaveValue("headphones", {
-            timeout: 5000,
+            timeout: 10000,
         });
 
-        // Should show filtered results (wait for debounce + embedding API)
+        // Should show filtered results (wait for extraction + search)
         await expect(async () => {
             const filteredCount = await page.locator('[data-testid="product-card"]').count();
             expect(filteredCount).toBeGreaterThan(0);
@@ -268,19 +288,38 @@ test.describe("Voice Search", () => {
             });
         });
 
+        // Mock the voice extraction endpoint
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "keyboard",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
+                }),
+            });
+        });
+
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
+        // Start recording
         await page.click('[data-testid="voice-button"]');
 
-        // After committed transcript, indicator should disappear and search
-        // should be populated. The partial transcript may or may not be visible
-        // depending on timing.
+        // Wait for transcript to be accumulated
+        await page.waitForTimeout(500);
+
+        // Stop recording to trigger extraction
+        await page.click('[data-testid="voice-button"]');
+
+        // After extraction, search should be populated and indicator hidden
         await expect(page.locator('[data-testid="search-input"]')).toHaveValue("keyboard", {
-            timeout: 5000,
+            timeout: 10000,
         });
 
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 5000 });
     });
 
     test("falls back to MediaRecorder when WebSocket fails", async ({ page }) => {
@@ -336,6 +375,20 @@ test.describe("Voice Search", () => {
             });
         });
 
+        // Mock voice extraction endpoint
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "monitor",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
+                }),
+            });
+        });
+
         await page.goto("/");
         await page.waitForSelector('[data-testid="product-card"]');
 
@@ -348,8 +401,10 @@ test.describe("Voice Search", () => {
         // Immediately click again to manually stop
         await page.click('[data-testid="voice-button"]');
 
-        // Indicator should be hidden
-        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({ timeout: 3000 });
+        // Indicator should be hidden after commit timeout + extraction
+        await expect(page.locator('[data-testid="voice-indicator"]')).toBeHidden({
+            timeout: 5000,
+        });
     });
 });
 
@@ -364,6 +419,19 @@ test.describe("Alt Push-to-Talk", () => {
                 body: JSON.stringify({
                     token: "fake-token",
                     ws_url: "wss://fake.elevenlabs.io/v1/stt",
+                }),
+            });
+        });
+
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "laptop",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
                 }),
             });
         });
@@ -392,6 +460,19 @@ test.describe("Alt Push-to-Talk", () => {
                 body: JSON.stringify({
                     token: "fake-token",
                     ws_url: "wss://fake.elevenlabs.io/v1/stt",
+                }),
+            });
+        });
+
+        await page.route("**/api/voice/extract", async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    query: "tablet",
+                    min_rating: null,
+                    sort: null,
+                    category: null,
                 }),
             });
         });

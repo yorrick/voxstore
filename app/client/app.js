@@ -29,6 +29,7 @@ const cartCountEl = document.getElementById("cart-count");
 const cartTotalEl = document.getElementById("cart-total");
 const categoryFilter = document.getElementById("category-filter");
 const sortFilter = document.getElementById("sort-filter");
+const ratingFilter = document.getElementById("rating-filter");
 
 // --- API calls ---
 
@@ -47,6 +48,16 @@ async function searchProducts(query) {
     if (!res.ok) throw new Error("Failed to search products");
     const data = await res.json();
     return data.products;
+}
+
+async function extractSearchIntent(transcript) {
+    var res = await fetch(API_BASE + "/voice/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: transcript }),
+    });
+    if (!res.ok) throw new Error("Failed to extract search intent");
+    return res.json();
 }
 
 async function fetchCategories() {
@@ -229,6 +240,7 @@ async function loadProducts() {
     var params = {};
     if (categoryFilter.value) params.category = categoryFilter.value;
     if (sortFilter.value) params.sort = sortFilter.value;
+    if (ratingFilter.value) params.min_rating = ratingFilter.value;
 
     products = await fetchProducts(params);
     products.forEach(function (p) {
@@ -269,6 +281,8 @@ var activeProcessor = null;
 var recordingTriggeredBy = null; // 'button' or 'spacebar'
 var partialTranscriptEl = document.getElementById("partial-transcript");
 var voiceHint = document.getElementById("voice-hint");
+var accumulatedTranscript = "";
+var commitTimeoutId = null;
 
 // Initialize browser SpeechRecognition as fallback
 try {
@@ -319,6 +333,11 @@ function startListening(triggeredBy) {
     if (isRecording) return;
     isRecording = true;
     recordingTriggeredBy = triggeredBy || "button";
+    accumulatedTranscript = "";
+    if (commitTimeoutId) {
+        clearTimeout(commitTimeoutId);
+        commitTimeoutId = null;
+    }
 
     startWebSocketRecording();
 }
@@ -393,10 +412,9 @@ function connectWebSocket(wsUrl) {
         } else if (msg.message_type === "committed_transcript") {
             var text = cleanTranscript(msg.text || "");
             if (text) {
-                searchInput.value = text;
-                searchInput.dispatchEvent(new Event("input"));
+                accumulatedTranscript += (accumulatedTranscript ? " " : "") + text;
+                setPartialTranscript(accumulatedTranscript);
             }
-            stopListening();
         } else if (
             msg.message_type === "error" ||
             msg.message_type === "auth_error" ||
@@ -717,24 +735,47 @@ function commitAndStop() {
         setVoiceStatus("Transcribing...");
         console.log("[VOICE] Sending commit, waiting for transcript...");
         activeWebSocket.send(
-            JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: "", commit: true }),
+            JSON.stringify({
+                message_type: "input_audio_chunk",
+                audio_base_64: "",
+                commit: true,
+            }),
         );
-        // Safety timeout: if we don't hear back in 5s, close anyway
+        // Wait briefly for final committed_transcript, then process
         var ws = activeWebSocket;
-        setTimeout(function () {
+        commitTimeoutId = setTimeout(function () {
+            commitTimeoutId = null;
             if (activeWebSocket === ws) {
-                console.log("[VOICE] Commit timeout, closing");
-                stopListening();
+                console.log("[VOICE] Processing accumulated transcript");
+                processAccumulatedTranscript().then(function () {
+                    stopListening();
+                });
             }
-        }, 5000);
+        }, 2000);
     } else {
-        stopListening();
+        processAccumulatedTranscript().then(function () {
+            stopListening();
+        });
     }
+}
+
+function processAccumulatedTranscript() {
+    var transcript = accumulatedTranscript.trim();
+    accumulatedTranscript = "";
+    if (transcript) {
+        return applyVoiceSearchExtraction(transcript);
+    }
+    return Promise.resolve();
 }
 
 function stopListening() {
     isRecording = false;
     recordingTriggeredBy = null;
+    accumulatedTranscript = "";
+    if (commitTimeoutId) {
+        clearTimeout(commitTimeoutId);
+        commitTimeoutId = null;
+    }
     voiceBtn.classList.remove("listening");
     voiceIndicator.style.display = "none";
     setPartialTranscript("");
@@ -780,6 +821,46 @@ function uploadAudio(audioBlob) {
             console.warn("Transcription request failed:", err);
             fallbackToBrowser();
         });
+}
+
+async function applyVoiceSearchExtraction(transcript) {
+    try {
+        setVoiceStatus("Understanding...");
+        voiceIndicator.style.display = "block";
+        var extraction = await extractSearchIntent(transcript);
+
+        // Apply extracted query to search input
+        if (extraction.query) {
+            searchInput.value = extraction.query;
+        }
+
+        // Apply extracted filters to dropdowns
+        if (extraction.category) {
+            categoryFilter.value = extraction.category;
+        }
+        if (extraction.sort) {
+            sortFilter.value = extraction.sort;
+        }
+        if (extraction.min_rating) {
+            ratingFilter.value = String(Math.floor(extraction.min_rating));
+        }
+
+        // Trigger search with all applied filters
+        if (extraction.query) {
+            var results = await searchProducts(extraction.query);
+            renderProducts(results);
+        } else {
+            await loadProducts();
+        }
+    } catch (err) {
+        console.error("Voice extraction failed, falling back:", err);
+        // Fallback: just do regular search with raw transcript
+        searchInput.value = transcript;
+        searchInput.dispatchEvent(new Event("input"));
+    } finally {
+        voiceIndicator.style.display = "none";
+        setPartialTranscript("");
+    }
 }
 
 voiceBtn.addEventListener("click", function () {
@@ -848,6 +929,7 @@ function closeCart() {
 
 categoryFilter.addEventListener("change", loadProducts);
 sortFilter.addEventListener("change", loadProducts);
+ratingFilter.addEventListener("change", loadProducts);
 
 // --- Init ---
 
