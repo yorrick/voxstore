@@ -278,6 +278,81 @@ options = ClaudeAgentOptions(
 | Complexity | High (worktrees, state machine) | Focused (one pipeline, one purpose) |
 | Frontend | Vite + TypeScript | Plain HTML/CSS/JS (no build) |
 
+## Sentry Setup
+
+The autopilot self-healing pipeline is triggered by Sentry issue alerts via an internal integration.
+
+### 1. Create an Internal Integration
+
+In Sentry, go to **Settings > Developer Settings > Create New Integration > Internal Integration**.
+
+Configure:
+- **Name:** `autopilot-voxstore`
+- **Webhook URL:** `https://<your-autopilot-host>/sentry-webhook`
+- **Alert Rule Action:** Enabled (toggle ON)
+- **Permissions:**
+  - Issue & Event: **Read & Write**
+- **Webhooks:**
+  - Check **issue** (enables created, resolved, assigned, archived, unresolved events)
+
+#### Schema (required for alert rule visibility)
+
+The integration **must** have a schema with an `alert-rule-action` element, otherwise it won't appear in alert rule actions. Paste this into the **Schema** field:
+
+```json
+{
+  "elements": [
+    {
+      "type": "alert-rule-action",
+      "title": "Send notification to autopilot-voxstore",
+      "settings": {
+        "type": "alert-rule-settings",
+        "uri": "/sentry-webhook",
+        "required_fields": [
+          {
+            "type": "text",
+            "label": "Channel",
+            "name": "channel"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+> **Note:** The `Channel` field is a dummy required field (Sentry mandates at least one `required_fields` entry). Set it to any value (e.g. `default`). The autopilot webhook ignores it.
+
+Save the integration. Copy the **Client Secret** — this is the `SENTRY_WEBHOOK_SECRET` used to verify webhook signatures.
+
+### 2. Create an Issue Alert Rule
+
+Go to **Alerts > Create Alert > Issues** for the `voxstore` project.
+
+- **WHEN:** A new issue is created
+- **IF:** (no filters, or customize as needed)
+- **THEN:** Send notification to autopilot-voxstore (with Channel = `default`)
+
+If the integration doesn't appear in the actions dropdown, click **"Missing an integration? Click here to refresh"**.
+
+### 3. Environment Variables
+
+The autopilot webhook server requires:
+
+```bash
+SENTRY_WEBHOOK_SECRET=<client-secret-from-internal-integration>
+ANTHROPIC_API_KEY=<your-anthropic-api-key>
+REPO_PATH=/path/to/voxstore  # defaults to parent of autopilot/
+```
+
+### 4. Webhook Endpoint
+
+The autopilot server exposes `POST /sentry-webhook` which:
+1. Verifies the Sentry signature using `SENTRY_WEBHOOK_SECRET`
+2. Parses the issue alert payload
+3. Kicks off the self-healing pipeline in the background
+4. Returns `200` immediately
+
 ## Build Order
 
 1. `app/server/` — backend with seed data, API, Sentry
