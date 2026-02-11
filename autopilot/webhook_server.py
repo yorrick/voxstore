@@ -15,29 +15,49 @@ Environment:
 - PORT: Server port (default: 8002)
 - REPO_PATH: Path to the voxstore repository
 - ANTHROPIC_API_KEY: Required for Claude Agent SDK
+- SENTRY_WEBHOOK_SECRET: Required for verifying Sentry webhook signatures
 """
 
 import asyncio
+import logging
 import os
 import sys
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from autopilot.models.sentry_issue import SentryIssue
 from autopilot.modules.sentry_parser import parse_sentry_webhook
+from autopilot.modules.signature import require_sentry_signature
 from autopilot.pipeline import run_pipeline
 
 load_dotenv()
 
 PORT = int(os.getenv("PORT", "8002"))
 REPO_PATH = os.getenv("REPO_PATH", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SENTRY_WEBHOOK_SECRET = os.getenv("SENTRY_WEBHOOK_SECRET", "")
+
+logger = logging.getLogger("autopilot.webhook")
+logging.basicConfig(
+    format="[%(asctime)s] %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.INFO,
+)
 
 app = FastAPI(title="VoxStore Autopilot", description="Self-healing webhook server")
+
+
+def _on_pipeline_done(task: asyncio.Task) -> None:  # type: ignore[type-arg]
+    """Log unhandled exceptions from background pipeline tasks."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error("Pipeline task failed: %s", exc, exc_info=exc)
 
 
 def _sentry_error_to_issue(error) -> SentryIssue:
@@ -58,22 +78,22 @@ def _sentry_error_to_issue(error) -> SentryIssue:
 
 
 @app.post("/sentry-webhook")
-async def sentry_webhook(request: Request):
+async def sentry_webhook(payload: dict = Depends(require_sentry_signature)):
     """Handle Sentry issue alert webhooks."""
     try:
-        payload = await request.json()
         error = parse_sentry_webhook(payload)
 
         if not error:
             return {"status": "ignored", "reason": "Could not parse Sentry payload"}
 
-        print(f"Received Sentry alert: {error.title}")
-        print(f"Culprit: {error.culprit}")
-        print(f"Level: {error.level}")
+        logger.info("Received Sentry alert: %s", error.title)
+        logger.info("Culprit: %s", error.culprit)
+        logger.info("Level: %s", error.level)
 
         issue = _sentry_error_to_issue(error)
         # Run pipeline in background so we return 200 immediately
-        asyncio.create_task(run_pipeline(issue, REPO_PATH))
+        task = asyncio.create_task(run_pipeline(issue, REPO_PATH))
+        task.add_done_callback(_on_pipeline_done)
 
         return {
             "status": "accepted",
@@ -81,28 +101,28 @@ async def sentry_webhook(request: Request):
             "message": "Pipeline started",
         }
 
-    except Exception as e:
-        print(f"Error processing Sentry webhook: {e}")
-        return {"status": "error", "message": str(e)}
+    except Exception:
+        logger.exception("Error processing Sentry webhook")
+        return {"status": "error", "message": "Internal server error"}
 
 
 @app.post("/gh-webhook")
 async def github_webhook(request: Request):
-    """Handle GitHub webhook events (for future use — e.g., re-trigger on check failure)."""
+    """Handle GitHub webhook events (for future use)."""
     try:
         event_type = request.headers.get("X-GitHub-Event", "")
         _ = await request.json()
 
-        print(f"Received GitHub webhook: event={event_type}")
+        logger.info("Received GitHub webhook: event=%s", event_type)
 
         # For now, just acknowledge. Can be extended to handle:
         # - check_run completed (retry merge)
         # - pull_request_review (re-evaluate merge)
         return {"status": "acknowledged", "event": event_type}
 
-    except Exception as e:
-        print(f"Error processing GitHub webhook: {e}")
-        return {"status": "error", "message": str(e)}
+    except Exception:
+        logger.exception("Error processing GitHub webhook")
+        return {"status": "error", "message": "Internal server error"}
 
 
 @app.get("/health")
@@ -116,10 +136,15 @@ async def health():
 
 
 if __name__ == "__main__":
-    print(f"Starting VoxStore Autopilot on port {PORT}")
-    print("Sentry webhook: POST /sentry-webhook")
-    print("GitHub webhook: POST /gh-webhook")
-    print("Health check:   GET /health")
-    print(f"Repo path:      {REPO_PATH}")
+    if not SENTRY_WEBHOOK_SECRET:
+        logger.error("SENTRY_WEBHOOK_SECRET is required but not set.")
+        logger.error("Set it in your .env file or as an environment variable.")
+        sys.exit(1)
+
+    logger.info("Starting VoxStore Autopilot on port %d", PORT)
+    logger.info("Sentry webhook: POST /sentry-webhook")
+    logger.info("GitHub webhook: POST /gh-webhook")
+    logger.info("Health check:   GET /health")
+    logger.info("Repo path:      %s", REPO_PATH)
 
     uvicorn.run(app, host="0.0.0.0", port=PORT)
