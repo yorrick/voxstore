@@ -1,5 +1,7 @@
 # VoxStore
 
+<video src="docs/demo.mp4" controls width="100%"></video>
+
 A voice-powered product catalog with an autonomous self-healing pipeline. The app itself is intentionally simple — a FastAPI backend and vanilla JavaScript frontend. The interesting part is what happens when it breaks: a separate service catches production errors from Sentry and spins up Claude Code agents to fix them, review the fix, audit it for security issues, and merge the PR. No human in the loop.
 
 ## The App
