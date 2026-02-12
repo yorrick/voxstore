@@ -93,6 +93,7 @@ async def run_code_review_agent(
         env["CLAUDE_CODE_TASK_LIST_ID"] = branch_name
 
     options = ClaudeAgentOptions(
+        model="opus",
         allowed_tools=["Read", "Glob", "Grep", "Bash"],
         cwd=repo_path,
         max_turns=20,

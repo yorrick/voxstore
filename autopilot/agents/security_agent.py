@@ -62,6 +62,7 @@ Provide your assessment with VERDICT, RISK_LEVEL, FINDINGS, and SUMMARY.
         env["CLAUDE_CODE_TASK_LIST_ID"] = branch_name
 
     options = ClaudeAgentOptions(
+        model="opus",
         system_prompt=SECURITY_SYSTEM_PROMPT,
         allowed_tools=["Read", "Glob", "Grep"],
         cwd=repo_path,

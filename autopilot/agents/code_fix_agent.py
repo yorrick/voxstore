@@ -184,6 +184,7 @@ async def run_code_fix_agent(
 
     branch_name = f"autopilot/fix-{issue.id}"
     options = ClaudeAgentOptions(
+        model="opus",
         system_prompt=FIX_SYSTEM_PROMPT,
         cwd=worktree_path,
         max_turns=50,
