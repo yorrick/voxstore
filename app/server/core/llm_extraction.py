@@ -20,15 +20,30 @@ Extract structured search parameters from the user's voice transcript.
 
 Available categories: Electronics, Clothing, Home, Books, Sports
 Available sort options: price_asc, price_desc, rating
-Rating filter: a minimum star rating (1.0-5.0), e.g. "4 stars" → 4.0
+Rating filter: a minimum star rating (1.0-5.0)
 
 Rules:
-- query: the core product search terms (e.g. "wireless headphones", "books")
-- min_rating: only set if the user explicitly mentions a rating threshold
-- sort: only set if the user mentions price ordering or "top rated"/"best rated"
-- category: only set if the user mentions a specific category
-- If the transcript is just a product name with no filters, return only the query
-- Keep the query concise — extract just the product search terms\
+- query: the core product search terms (e.g. "wireless headphones", "bottle")
+  Keep it concise — extract just the product search terms, not qualifiers.
+- category: set when the user mentions a category by name OR a strongly
+  associated context. Use these mappings:
+  - Sports: camping, hiking, outdoor, fitness, exercise, gym, workout, yoga
+  - Electronics: tech, gadget, computer, phone, audio, digital
+  - Home: kitchen, cooking, decor, furniture, household
+  - Books: reading, novel, literature, textbook, study
+  - Clothing: fashion, wear, outfit, apparel, shoes
+  Only infer a category when the association is strong. Leave null when
+  ambiguous.
+- min_rating: set when the user explicitly mentions a rating (e.g. "4 stars"
+  → 4.0) OR uses quality-related language:
+  - "good", "quality", "reliable", "well-rated", "decent" → 4.0
+  - "best", "top", "excellent", "premium", "amazing", "great" → 4.5
+  Leave null when there is no quality signal.
+- sort: set when the user mentions price ordering ("cheap", "affordable",
+  "budget" → price_asc; "expensive", "premium priced" → price_desc) or
+  rating ordering ("top rated", "best rated" → rating).
+- If the transcript is just a product name with no filters, return only
+  the query.\
 """
 
 
