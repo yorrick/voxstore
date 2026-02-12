@@ -113,7 +113,9 @@ def embed_query(query: str) -> np.ndarray:
     return _normalize(vec)
 
 
-def semantic_search(query: str, threshold: float = 0.55) -> list[tuple[int, float]]:
+def semantic_search(
+    query: str, threshold: float = 0.6, max_results: int = 10
+) -> list[tuple[int, float]]:
     """Return product IDs with similarity scores above threshold, sorted by score."""
     if not _product_embeddings:
         return []
@@ -127,7 +129,7 @@ def semantic_search(query: str, threshold: float = 0.55) -> list[tuple[int, floa
             results.append((product_id, score))
 
     results.sort(key=lambda x: x[1], reverse=True)
-    return results
+    return results[:max_results]
 
 
 def is_available() -> bool:

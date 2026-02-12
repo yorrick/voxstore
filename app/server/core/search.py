@@ -30,9 +30,9 @@ def search_products(query: str) -> list[dict]:
     row_map = {row["id"]: dict(row) for row in rows}
     results = [row_map[pid] for pid, _ in matches if pid in row_map]
 
-    # Log top result for search quality monitoring
-    if results:
-        top = results[0]
-        logger.info("[SEARCH] query=%r top_result=%s score=%.3f", query, top["name"], top["score"])
+    # # Log top result for search quality monitoring
+    # if results:
+    #     top = results[0]
+    #     logger.info("[SEARCH] query=%r top=%s score=%.3f", query, top["name"], top["score"])
 
     return results

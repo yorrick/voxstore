@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 
-def _mock_semantic_search(query, threshold=0.3):
+def _mock_semantic_search(query, threshold=0.6, max_results=10):
     """Mock semantic search that simulates vector matching with simple keyword logic."""
     query_lower = query.lower()
 
