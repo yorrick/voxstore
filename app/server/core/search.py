@@ -28,11 +28,13 @@ def search_products(query: str) -> list[dict]:
 
     # Build a map for ordering by score
     row_map = {row["id"]: dict(row) for row in rows}
+    score_map = dict(matches)
     results = [row_map[pid] for pid, _ in matches if pid in row_map]
 
-    # # Log top result for search quality monitoring
-    # if results:
-    #     top = results[0]
-    #     logger.info("[SEARCH] query=%r top=%s score=%.3f", query, top["name"], top["score"])
+    # Log top result for search quality monitoring
+    if results:
+        top = results[0]
+        top_score = score_map.get(top["id"], 0.0)
+        logger.info("[SEARCH] query=%r top=%s score=%.3f", query, top["name"], top_score)
 
     return results
